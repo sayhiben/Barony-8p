@@ -5181,7 +5181,7 @@ void Entity::handleEffects(Stat* myStats)
 	bool naturalHeal = false;
 	if ( healthRegenInterval >= 0 )
 	{
-		if ( myStats->HP < myStats->MAXHP )
+		if ( myStats->HP < myStats->MAXHP && myStats->HP > 0 )
 		{
 			this->char_heal++;
 			/*if ( (svFlags & SV_FLAG_HUNGER) || behavior == &actMonster || (behavior == &actPlayer && myStats->type == SKELETON) )*/
@@ -5219,7 +5219,7 @@ void Entity::handleEffects(Stat* myStats)
   		int interval = getSpellEffectDurationSecondaryFromID(SPELL_FOCI_LIGHT_PEACE, nullptr, nullptr, nullptr);
 		interval -= (effectStrength - 1) * getSpellDamageSecondaryFromID(SPELL_FOCI_LIGHT_PEACE, nullptr, nullptr, nullptr);
 		interval = std::max(1, interval);
-		if ( ((myStats->EFFECTS_ACCRETION_TIME[EFF_FOCI_LIGHT_PEACE]) % interval == 0) )
+		if ( ((myStats->EFFECTS_ACCRETION_TIME[EFF_FOCI_LIGHT_PEACE]) % interval == 0) && myStats->HP > 0 )
 		{
 			Sint32 oldHP = myStats->HP;
 			this->modHP(1);
@@ -5305,7 +5305,7 @@ void Entity::handleEffects(Stat* myStats)
 	}
 
 	if ( myStats->getEffectActive(EFF_MARIGOLD) && (svFlags & SV_FLAG_HUNGER)
-		&& myStats->EFFECTS_TIMERS[EFF_MARIGOLD] > 0 )
+		&& myStats->EFFECTS_TIMERS[EFF_MARIGOLD] > 0 && myStats->HP > 0 )
 	{
 		if ( behavior == &actPlayer )
 		{
@@ -5340,7 +5340,7 @@ void Entity::handleEffects(Stat* myStats)
 	}
 
 	if ( myStats->getEffectActive(EFF_HP_MP_REGEN) && (svFlags & SV_FLAG_HUNGER)
-		&& myStats->EFFECTS_TIMERS[EFF_HP_MP_REGEN] > 0 )
+		&& myStats->EFFECTS_TIMERS[EFF_HP_MP_REGEN] > 0 && myStats->HP > 0 )
 	{
 		if ( behavior == &actPlayer )
 		{
@@ -15621,6 +15621,7 @@ void Entity::attack(int pose, int charge, Entity* target)
 						if ( achievementObserver.playerAchievements[playerhit].parryTank > 0 )
 						{
 							achievementObserver.playerAchievements[playerhit].parryTank = -1;
+							serverUpdatePlayerGameplayStats(playerhit, STATISTICS_PARRY_TANK, 0);
 						}
 					}
 					if ( parriedDamage > 0 )
@@ -15746,12 +15747,14 @@ void Entity::attack(int pose, int charge, Entity* target)
 							if ( damage == 0 )
 							{
 								achievementObserver.playerAchievements[playerhit].parryTank += 1;
+								serverUpdatePlayerGameplayStats(playerhit, STATISTICS_PARRY_TANK, 1);
 							}
 							else
 							{
 								if ( achievementObserver.playerAchievements[playerhit].parryTank > 0 )
 								{
 									achievementObserver.playerAchievements[playerhit].parryTank = -1;
+									serverUpdatePlayerGameplayStats(playerhit, STATISTICS_PARRY_TANK, 0);
 								}
 							}
 						}
