@@ -24944,6 +24944,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 					playSoundEntity(this, 35 + local_rng.rand() % 3, 64);
 					addItemToMonsterInventory(item);
 					item = nullptr;
+					entity->removeLightField();
 					list_RemoveNode(entity->mynode);
 					pickedUpItemReturnValue = true;
 				}
@@ -24957,6 +24958,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 					{
 						messagePlayer(monsterAllyIndex, MESSAGE_WORLD, Language::get(3145), items[item->type].getUnidentifiedName());
 					}
+					entity->removeLightField();
 					list_RemoveNode(entity->mynode); // slimes eat the item up.
 					pickedUpItemReturnValue = true;
 				}
@@ -25035,6 +25037,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 
 					(*shouldWield) = item;
 					item = nullptr;
+					entity->removeLightField();
 					list_RemoveNode(entity->mynode);
 					pickedUpItemReturnValue = true;
 				}
@@ -25057,6 +25060,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 						addItemToMonsterInventory(item);
 					}
 					item = nullptr;
+					entity->removeLightField();
 					list_RemoveNode(entity->mynode);
 					pickedUpItemReturnValue = true;
 				}
@@ -25076,6 +25080,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 									// stack the items.
 									toStack->count += item->count;
 									item = nullptr;
+									entity->removeLightField();
 									list_RemoveNode(entity->mynode);
 									pickedUpItemReturnValue = true;
 									addItem = false;
@@ -25088,6 +25093,7 @@ bool Entity::monsterAddNearbyItemToInventory(Stat* myStats, int rangeToFind, int
 					{
 						addItemToMonsterInventory(item);
 						item = nullptr;
+						entity->removeLightField();
 						list_RemoveNode(entity->mynode);
 						pickedUpItemReturnValue = true;
 					}
