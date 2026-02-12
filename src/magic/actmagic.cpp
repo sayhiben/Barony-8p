@@ -10612,7 +10612,7 @@ Entity* floorMagicCreateRoots(real_t x, real_t y, Entity* caster, int damage, in
 	return spellTimer;
 }
 
-void floorMagicCreateSpores(Entity* spawnOnEntity, real_t x, real_t y, Entity* caster, int damage, int spellID)
+void floorMagicCreateSpores(Entity* spawnOnEntity, real_t x, real_t y, Entity* caster, int damage, int spellID, bool magicstaff)
 {
 	if ( multiplayer == CLIENT )
 	{
@@ -10688,6 +10688,7 @@ void floorMagicCreateSpores(Entity* spawnOnEntity, real_t x, real_t y, Entity* c
 	spellTimer->particleTimerVariable1 = damage;
 	spellTimer->particleTimerVariable2 = spellID;
 	spellTimer->particleTimerVariable4 = 0;
+	spellTimer->actmagicCastByMagicstaff = magicstaff ? 1 : 0;
 
 	auto& timerEffects = particleTimerEffects[spellTimer->getUID()];
 
@@ -13736,6 +13737,7 @@ void actParticleTimer(Entity* my)
 								fx->sizex = 8;
 								fx->sizey = 8;
 								fx->parent = my->getUID();
+								fx->actmagicCastByMagicstaff = my->actmagicCastByMagicstaff;
 								floorMagicParticleSetUID(*fx, true);
 							}
 						}
