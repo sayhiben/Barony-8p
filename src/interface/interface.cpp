@@ -9231,7 +9231,7 @@ void GenericGUIMenu::alchemyCookCombination()
 		if ( alchemyGUI.torchCount.count >= 0 )
 		{
 			std::vector<Item*> torches;
-			Item* torchesEquipped;
+			Item* torchesEquipped{};
 			for ( node_t* invnode = stats[gui_player]->inventory.first; invnode != NULL; invnode = invnode->next )
 			{
 				Item* item = (Item*)invnode->element;
