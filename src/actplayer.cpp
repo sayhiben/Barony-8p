@@ -11530,15 +11530,15 @@ void actPlayer(Entity* my)
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_FAST) )
 				{
 					int caster = StatusEffectOwnerEncoding::decodeFastCasterCompat(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS && players[caster]->entity )
+					if ( StatusEffectOwnerEncoding::isValidPlayerIndex(caster) && players[caster]->entity )
 					{
 						players[caster]->mechanics.updateSustainedSpellEvent(SPELL_SPEED, dist, 0.025, nullptr);
 					}
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_NIMBLENESS) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11548,8 +11548,8 @@ void actPlayer(Entity* my)
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_GREATER_MIGHT) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11559,8 +11559,8 @@ void actPlayer(Entity* my)
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_COUNSEL) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11568,21 +11568,21 @@ void actPlayer(Entity* my)
 						}
 					}
 				}
-				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_STURDINESS) )
-				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_STURDINESS) )
 					{
-						if ( players[caster]->entity )
+						int caster = -1;
+						if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 						{
-							players[caster]->mechanics.updateSustainedSpellEvent(SPELL_PROF_STURDINESS, dist, 0.002, nullptr);
+							if ( players[caster]->entity )
+							{
+								players[caster]->mechanics.updateSustainedSpellEvent(SPELL_PROF_STURDINESS, dist, 0.002, nullptr);
+							}
 						}
 					}
 				}
-			}
 
-			// bumping into monsters disturbs them
-			if ( hit.entity && !intro )
+				// bumping into monsters disturbs them
+				if ( hit.entity && !intro )
 			{
 				if ( multiplayer != CLIENT )
 				{
@@ -11828,15 +11828,15 @@ void actPlayer(Entity* my)
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_FAST) )
 				{
 					int caster = StatusEffectOwnerEncoding::decodeFastCasterCompat(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS && players[caster]->entity )
+					if ( StatusEffectOwnerEncoding::isValidPlayerIndex(caster) && players[caster]->entity )
 					{
 						players[caster]->mechanics.updateSustainedSpellEvent(SPELL_SPEED, dist, 0.025, nullptr);
 					}
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_NIMBLENESS) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11846,8 +11846,8 @@ void actPlayer(Entity* my)
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_GREATER_MIGHT) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11857,8 +11857,8 @@ void actPlayer(Entity* my)
 				}
 				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_COUNSEL) )
 				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					int caster = -1;
+					if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 					{
 						if ( players[caster]->entity )
 						{
@@ -11866,21 +11866,21 @@ void actPlayer(Entity* my)
 						}
 					}
 				}
-				if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_STURDINESS) )
-				{
-					int caster = StatusEffectOwnerEncoding::decodeOwnerNibbleToPlayer(effectStrength);
-					if ( caster >= 0 && caster < MAXPLAYERS )
+					if ( Uint8 effectStrength = stats[PLAYER_NUM]->getEffectActive(EFF_STURDINESS) )
 					{
-						if ( players[caster]->entity )
+						int caster = -1;
+						if ( StatusEffectOwnerEncoding::tryDecodeOwnerNibbleToPlayer(effectStrength, caster) )
 						{
-							players[caster]->mechanics.updateSustainedSpellEvent(SPELL_PROF_STURDINESS, dist, 0.002, nullptr);
+							if ( players[caster]->entity )
+							{
+								players[caster]->mechanics.updateSustainedSpellEvent(SPELL_PROF_STURDINESS, dist, 0.002, nullptr);
+							}
 						}
 					}
 				}
-			}
 
-			// bumping into monsters disturbs them
-			if ( hit.entity && !intro )
+				// bumping into monsters disturbs them
+				if ( hit.entity && !intro )
 			{
 				if ( !everybodyfriendly && hit.entity->behavior == &actMonster )
 				{

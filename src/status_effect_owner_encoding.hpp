@@ -9,9 +9,14 @@ namespace StatusEffectOwnerEncoding
 	constexpr std::uint8_t kStrengthNibbleMask = 0x0F;
 	constexpr std::uint8_t kOwnerNibbleMask = 0xF0;
 
+	inline bool isValidPlayerIndex(const int player)
+	{
+		return player >= 0 && player < MAXPLAYERS;
+	}
+
 	inline std::uint8_t encodeOwnerNibbleFromPlayer(const int player)
 	{
-		if ( player < 0 || player >= MAXPLAYERS )
+		if ( !isValidPlayerIndex(player) )
 		{
 			return 0;
 		}
@@ -26,6 +31,18 @@ namespace StatusEffectOwnerEncoding
 			return ownerOneBased - 1;
 		}
 		return -1;
+	}
+
+	inline bool tryDecodeOwnerNibbleToPlayer(const std::uint8_t packedValue, int& outPlayer)
+	{
+		outPlayer = decodeOwnerNibbleToPlayer(packedValue);
+		return isValidPlayerIndex(outPlayer);
+	}
+
+	inline bool packedOwnerMatchesPlayer(const std::uint8_t packedValue, const int player)
+	{
+		return isValidPlayerIndex(player)
+			&& decodeOwnerNibbleToPlayer(packedValue) == player;
 	}
 
 	inline std::uint8_t packStrengthWithOwnerNibble(const std::uint8_t strength, const int player)

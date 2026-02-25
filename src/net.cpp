@@ -86,6 +86,8 @@ static bool hasUsablePlayerSlot(const int player, const bool requireStats = true
 
 namespace {
 constexpr Uint8 kJoinCapabilityHeloChunkV1 = 0x01;
+constexpr int kJoinVersionFieldOffset = 48;
+constexpr int kJoinVersionFieldBytes = 8;
 constexpr int kHeloChunkHeaderSize = 12;
 constexpr int kHeloChunkPayloadMax = 900;
 constexpr int kHeloSinglePacketMax = 1100;
@@ -132,6 +134,64 @@ Uint16 nextHeloTransferIdForPlayer(const int player)
 		++g_heloTransferId[player];
 	}
 	return g_heloTransferId[player];
+}
+
+void disposeNetTempItem(Item*& item)
+{
+	if ( !item )
+	{
+		return;
+	}
+	if ( item->node )
+	{
+		list_RemoveNode(item->node);
+	}
+	else
+	{
+		free(item);
+	}
+	item = nullptr;
+}
+
+void cleanupNetEquipTempItem(Item*& item, const EquipItemResult equipResult)
+{
+	if ( equipResult == EQUIP_ITEM_SUCCESS_UPDATE_QTY
+		|| equipResult == EQUIP_ITEM_FAIL_CANT_UNEQUIP )
+	{
+		disposeNetTempItem(item);
+	}
+}
+
+std::string readJoinVersionString(const UDPpacket* packet)
+{
+	if ( !packet || !packet->data || packet->len <= kJoinVersionFieldOffset )
+	{
+		return "<missing>";
+	}
+
+	char versionBuffer[kJoinVersionFieldBytes + 1] = { 0 };
+	const int readableBytes = std::min(
+		kJoinVersionFieldBytes,
+		std::max(0, packet->len - kJoinVersionFieldOffset));
+	memcpy(versionBuffer, packet->data + kJoinVersionFieldOffset, readableBytes);
+
+	for ( int i = 0; i < kJoinVersionFieldBytes; ++i )
+	{
+		if ( versionBuffer[i] == '\0' )
+		{
+			break;
+		}
+		if ( !std::isprint(static_cast<unsigned char>(versionBuffer[i])) )
+		{
+			versionBuffer[i] = '?';
+		}
+	}
+
+	if ( versionBuffer[0] == '\0' )
+	{
+		return "<empty>";
+	}
+	return std::string(versionBuffer);
 }
 
 bool sendChunkedHeloToHost(const int hostnum, const IPaddress& destination, const Uint8* heloData, const int heloLen,
@@ -1688,8 +1748,11 @@ NetworkingLobbyJoinRequestResult lobbyPlayerJoinRequest(int& outResult, bool loc
 		&& ((net_packet->data[69] & kJoinCapabilityHeloChunkV1) != 0);
 
 	Uint32 result = MAXPLAYERS;
-	if ( strcmp(VERSION, (char*)net_packet->data + 48) ) // TODO this should be safer.
+	const std::string remoteVersion = readJoinVersionString(net_packet);
+	if ( remoteVersion != VERSION )
 	{
+		printlog("[NET]: rejecting JOIN wrong version local=\"%s\" remote=\"%s\"",
+			VERSION, remoteVersion.c_str());
 		result = MAXPLAYERS + 1; // wrong version number
 	}
 	else
@@ -8424,21 +8487,7 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		    net_packet->data[24],
 		    &stats[client]->inventory);
 		EquipItemResult res = equipItem(item, &stats[client]->weapon, client, false);
-		if ( res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
-			|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP )
-		{
-			if ( item )
-			{
-				if ( item->node )
-				{
-					list_RemoveNode(item->node);
-				}
-				else
-				{
-					free(item);
-				}
-			}
-		}
+		cleanupNetEquipTempItem(item, res);
 	}},
 
 	// equip item (as a shield)
@@ -8453,21 +8502,7 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		    net_packet->data[24],
 		    &stats[client]->inventory);
 		EquipItemResult res = equipItem(item, &stats[client]->shield, client, false);
-		if ( res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
-			|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP )
-		{
-			if ( item )
-			{
-				if ( item->node )
-				{
-					list_RemoveNode(item->node);
-				}
-				else
-				{
-					free(item);
-				}
-			}
-		}
+		cleanupNetEquipTempItem(item, res);
 	}},
 
 	// consume torch item shield slot
@@ -8498,19 +8533,13 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		{
 			bool oldIntro = intro;
 			intro = true;
-			equipItem(item, &stats[client]->shield, client, false);
+			EquipItemResult res = equipItem(item, &stats[client]->shield, client, false);
 			intro = oldIntro;
+			cleanupNetEquipTempItem(item, res);
 		}
 		else
 		{
-			if ( item->node )
-			{
-				list_RemoveNode(item->node);
-			}
-			else
-			{
-				free(item);
-			}
+			disposeNetTempItem(item);
 		}
 	} },
 
@@ -8526,7 +8555,7 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		    net_packet->data[24],
 		    &stats[client]->inventory);
 		
-		int res = -1;
+		EquipItemResult res = EQUIP_ITEM_FAIL_CANT_UNEQUIP;
 		switch ( net_packet->data[27] )
 		{
 			case EQUIP_ITEM_SLOT_WEAPON:
@@ -8563,21 +8592,7 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 				break;
 		}
 
-		if ( res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
-			|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP )
-		{
-			if ( item )
-			{
-				if ( item->node )
-				{
-					list_RemoveNode(item->node);
-				}
-				else
-				{
-					free(item);
-				}
-			}
-		}
+		cleanupNetEquipTempItem(item, res);
 	}},
 
 	// update appearance of item

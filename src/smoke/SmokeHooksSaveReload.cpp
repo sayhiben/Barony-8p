@@ -45,6 +45,8 @@ namespace SaveReload
 			int accretion = 0;
 		};
 
+		static const std::array<int, 3> kOwnerEncodingFocusSlots = { 0, 7, 14 };
+
 		static const std::array<OwnerEncodingEffectSpec, 15> kOwnerEncodingEffects = {
 			OwnerEncodingEffectSpec{EFF_FAST, "EFF_FAST", OwnerEncodingKind::FAST_COMPAT, false},
 			OwnerEncodingEffectSpec{EFF_DIVINE_FIRE, "EFF_DIVINE_FIRE", OwnerEncodingKind::PACKED_NIBBLE, false},
@@ -75,6 +77,18 @@ namespace SaveReload
 				oss << values[i];
 			}
 			return oss.str();
+		}
+
+		bool isOwnerEncodingFocusSlot(const int slot)
+		{
+			for ( const int focusSlot : kOwnerEncodingFocusSlots )
+			{
+				if ( focusSlot == slot )
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 
 		bool writeSaveInfoToSlot(const bool singleplayer, const int saveIndex, SaveGameInfo info)
@@ -264,6 +278,39 @@ namespace SaveReload
 					printlog("[SMOKE]: save_reload_owner lane=%s phase=%s slot=%d effect=%s field=owner expected=%d actual=%d status=fail",
 						laneName.c_str(), phase, slot, spec.name, expectedOwner, actualOwner);
 					ok = false;
+				}
+
+				const bool ownerEncodedEffect =
+					(spec.encoding == OwnerEncodingKind::PACKED_NIBBLE
+						|| spec.encoding == OwnerEncodingKind::FAST_COMPAT)
+					&& !spec.forceNonPlayerSentinel;
+				if ( ownerEncodedEffect )
+				{
+					const Uint8 rawValue = static_cast<Uint8>(actualRaw);
+					if ( expectedOwner >= 0
+						&& !StatusEffectOwnerEncoding::packedOwnerMatchesPlayer(rawValue, expectedOwner) )
+					{
+						printlog("[SMOKE]: save_reload_owner lane=%s phase=%s slot=%d effect=%s field=owner_match expected=%d actual=miss status=fail",
+							laneName.c_str(), phase, slot, spec.name, expectedOwner);
+						ok = false;
+					}
+					// Ensure slot 1/8/15 owner ids never cross-attributed in full-cap saves.
+					if ( connectedPlayers == MAXPLAYERS && isOwnerEncodingFocusSlot(slot) && expectedOwner >= 0 )
+					{
+						for ( const int wrongOwner : kOwnerEncodingFocusSlots )
+						{
+							if ( wrongOwner == expectedOwner )
+							{
+								continue;
+							}
+							if ( StatusEffectOwnerEncoding::packedOwnerMatchesPlayer(rawValue, wrongOwner) )
+							{
+								printlog("[SMOKE]: save_reload_owner lane=%s phase=%s slot=%d effect=%s field=owner_negative expected_not=%d actual=match status=fail",
+									laneName.c_str(), phase, slot, spec.name, wrongOwner);
+								ok = false;
+							}
+						}
+					}
 				}
 			}
 			return ok;

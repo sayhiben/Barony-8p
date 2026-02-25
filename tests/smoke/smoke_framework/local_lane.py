@@ -7,6 +7,19 @@ from pathlib import Path
 
 from .fs import reset_paths
 
+SMOKE_MIN_ALL_SETTINGS_VERSION = 25
+SMOKE_MIN_CONTROLS_VERSION = 5
+SMOKE_CONTROL_DEFAULTS = {
+    "numkeys_change_hotbar_slot_enabled": True,
+    "gamepad_deadzone_left": 25.0,
+    "gamepad_deadzone_right": 25.0,
+    "quick_turn_speed_control": 1.0,
+    "quick_turn_speed_mkb_control": 1.0,
+    "mouse_event_limit_mkb_control": 1000,
+    "spell_quickcast_mkb_enabled": False,
+    "spell_quickcast_controller_enabled": False,
+}
+
 
 @dataclass(frozen=True)
 class LocalSingleLanePaths:
@@ -17,6 +30,23 @@ class LocalSingleLanePaths:
     stdout_log: Path
     host_log: Path
     pid_file: Path
+
+
+def _apply_deterministic_control_defaults(config: dict) -> None:
+    controls = config.get("controls")
+    if not isinstance(controls, list):
+        return
+    version = config.get("version")
+    if not isinstance(version, int) or version < SMOKE_MIN_ALL_SETTINGS_VERSION:
+        config["version"] = SMOKE_MIN_ALL_SETTINGS_VERSION
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        control_version = control.get("version")
+        if not isinstance(control_version, int) or control_version < SMOKE_MIN_CONTROLS_VERSION:
+            control["version"] = SMOKE_MIN_CONTROLS_VERSION
+        for key, value in SMOKE_CONTROL_DEFAULTS.items():
+            control.setdefault(key, value)
 
 
 def seed_smoke_home_profile(home_dir: Path, seed_config_path: Path, seed_books_path: Path) -> None:
@@ -31,6 +61,7 @@ def seed_smoke_home_profile(home_dir: Path, seed_config_path: Path, seed_books_p
             if isinstance(config, dict):
                 config["skipintro"] = True
                 config["mods"] = []
+                _apply_deterministic_control_defaults(config)
             with config_dest.open("w", encoding="utf-8") as dst:
                 json.dump(config, dst)
             wrote_config = True

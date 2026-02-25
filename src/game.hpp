@@ -25,10 +25,12 @@
 
 // REMEMBER TO CHANGE THIS WITH EVERY NEW OFFICIAL VERSION!!!
 #ifdef NINTENDO
-static const char VERSION[] = "v5.0.2";
+static const char VERSION[] = "v5.0.2m";
 #else
-static const char VERSION[] = "v5.0.2";
+static const char VERSION[] = "v5.0.2m";
 #endif
+static_assert(sizeof(VERSION) <= 8,
+	"VERSION (including null terminator) must fit in the 8-byte JOIN version field.");
 #define GAME_CODE
 
 class Entity;

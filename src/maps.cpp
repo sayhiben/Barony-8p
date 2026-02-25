@@ -98,8 +98,8 @@ static int getOverflowLootToMonsterRerollDivisor(int overflowPlayers)
 	}
 	if ( overflowPlayers >= 9 )
 	{
-		// High-overflow parties need a little less loot->monster conversion to avoid density spikes.
-		divisor += 4;
+		// High-overflow parties need less loot->monster conversion to preserve item progression scaling.
+		divisor += 6;
 	}
 	if ( overflowPlayers >= 12 )
 	{
@@ -118,9 +118,8 @@ static int getOverflowRoomSelectionTrials(int overflowPlayers, int currentLevel)
 		return 2;
 	}
 	int trials = 1 + std::min(2, (overflowPlayers + 2) / 4);
-	if ( overflowPlayers >= 11 && (currentLevel == 1 || currentLevel >= 16) )
+	if ( overflowPlayers >= 11 && currentLevel <= 16 )
 	{
-		// Re-introduce extra spread where high-party clumping remains most problematic (entry + deep floors).
 		++trials;
 	}
 	return std::min(4, trials);
@@ -150,6 +149,10 @@ static int getOverflowForcedMonsterSpawns(int overflowPlayers)
 	{
 		++spawns;
 	}
+	if ( overflowPlayers >= 9 )
+	{
+		++spawns;
+	}
 	if ( overflowPlayers >= 10 )
 	{
 		++spawns;
@@ -158,7 +161,7 @@ static int getOverflowForcedMonsterSpawns(int overflowPlayers)
 	{
 		++spawns;
 	}
-	return std::min(7, spawns);
+	return std::min(5, spawns);
 }
 
 static int getOverflowForcedMonsterSpawnReductionByDepth(int currentLevel, int overflowPlayers)
@@ -182,7 +185,7 @@ static int getOverflowForcedMonsterSpawnReductionByDepth(int currentLevel, int o
 
 static int getOverflowForcedGoldSpawns(int overflowPlayers)
 {
-	// Keep early overflow stable, then progressively raise economy floor for larger parties.
+	// Keep economy floor scaling in overflow lobbies without over-saturating total gold count.
 	int spawns = 1 + overflowPlayers / 2;
 	if ( overflowPlayers >= 4 )
 	{
@@ -190,13 +193,9 @@ static int getOverflowForcedGoldSpawns(int overflowPlayers)
 	}
 	if ( overflowPlayers >= 5 )
 	{
-		spawns += 2;
-	}
-	if ( overflowPlayers >= 6 )
-	{
 		++spawns;
 	}
-	if ( overflowPlayers >= 8 )
+	if ( overflowPlayers >= 6 )
 	{
 		++spawns;
 	}
@@ -209,6 +208,10 @@ static int getOverflowForcedGoldSpawns(int overflowPlayers)
 		++spawns;
 	}
 	if ( overflowPlayers >= 11 )
+	{
+		spawns += 3;
+	}
+	if ( overflowPlayers >= 12 )
 	{
 		++spawns;
 	}
@@ -239,10 +242,6 @@ static int getOverflowForcedLootSpawns(int overflowPlayers)
 	{
 		++spawns;
 	}
-	if ( overflowPlayers >= 10 )
-	{
-		++spawns;
-	}
 	if ( overflowPlayers >= 11 )
 	{
 		spawns += 3;
@@ -252,31 +251,31 @@ static int getOverflowForcedLootSpawns(int overflowPlayers)
 
 static int getOverflowLootGoldRollDivisor(int overflowPlayers)
 {
-	// Bias extra random gold toward larger overflow lobbies to preserve per-player progression.
+	// Keep random gold conversion conservative; forced-gold anchors carry most overflow economy scaling.
 	int divisor = 10 - (overflowPlayers / 3);
-	if ( overflowPlayers >= 4 )
+	if ( overflowPlayers >= 5 )
 	{
 		--divisor;
 	}
-	if ( overflowPlayers >= 5 )
+	if ( overflowPlayers >= 4 )
 	{
 		--divisor;
 	}
 	if ( overflowPlayers >= 9 )
 	{
-		divisor -= 2;
+		--divisor;
 	}
 	if ( overflowPlayers >= 10 )
 	{
 		--divisor;
 	}
-	const int divisorFloor = overflowPlayers >= 9 ? 3 : 2;
+	const int divisorFloor = 2;
 	return std::max(divisorFloor, divisor);
 }
 
 static int getOverflowForcedDecorationSpawns(int overflowPlayers)
 {
-	// Keep ambience growth for larger parties without over-crowding shared traversal space.
+	// Preserve ambience scaling in overflow lobbies without over-driving decoration density.
 	int spawns = 1 + overflowPlayers / 3;
 	if ( overflowPlayers >= 8 )
 	{
@@ -286,7 +285,8 @@ static int getOverflowForcedDecorationSpawns(int overflowPlayers)
 	{
 		--spawns;
 	}
-	return std::max(1, std::min(3, spawns));
+	const int cap = overflowPlayers >= 10 ? 2 : 3;
+	return std::max(1, std::min(cap, spawns));
 }
 
 static int getOverflowDecorationObstacleBudget(int overflowPlayers)
@@ -5125,8 +5125,8 @@ int generateDungeon(char* levelset, Uint32 seed, std::tuple<int, int, int, int> 
 							int forcedLootGoldDivisor = 10;
 							if ( overflowPlayers > 0 )
 							{
-								// Keep overflow forced-loot rolls item-forward while explicit forced-gold carries most gold-count uplift.
-								forcedLootGoldDivisor += 2 + std::min(4, overflowPlayers / 3);
+								// Keep overflow forced-loot rolls item-forward while explicit forced-gold carries economy uplift.
+								forcedLootGoldDivisor += std::min(2, overflowPlayers / 4);
 							}
 							if ( map_rng.rand() % forcedLootGoldDivisor == 0 )
 							{

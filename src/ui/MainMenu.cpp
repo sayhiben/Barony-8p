@@ -87,6 +87,7 @@ namespace MainMenu {
 	ConsoleVariable<bool> cvar_hdrEnabled("/hdr_enabled", true);
 	static const int numFilters = NUM_SERVER_FLAGS + 2;
 	constexpr Uint8 kJoinCapabilityHeloChunkV1 = 0x01;
+	constexpr int kJoinVersionFieldBytes = 8;
 	constexpr int kHeloChunkHeaderSize = 12;
 	constexpr int kHeloChunkPayloadMax = 900;
 	constexpr int kHeloChunkMaxCount = 32;
@@ -13721,7 +13722,7 @@ bind_failed:
 	    Uint32 appearanceAndRace = ((Uint8)stats[index]->stat_appearance << 8); // store in bits 8 - 15
 	    appearanceAndRace |= (Uint8)stats[index]->playerRace; // store in bits 0 - 7
 	    SDLNet_Write32(appearanceAndRace, &net_packet->data[44]);
-	    stringCopy((char*)net_packet->data + 48, VERSION, 8, sizeof(VERSION));
+	    stringCopy((char*)net_packet->data + 48, VERSION, kJoinVersionFieldBytes, sizeof(VERSION));
 	    net_packet->data[56] = index;
 	    if (loadingsavegame) {
 		    // send over the map seed being used
