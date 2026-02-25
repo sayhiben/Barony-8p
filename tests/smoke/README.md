@@ -8,7 +8,7 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
 
 - Entry point: `python3 tests/smoke/smoke_runner.py <lane> [options]`.
 - `smoke_runner.py` composes top-level lane parser registration (`argparse`) from lane modules.
-- Shared framework helpers live under `tests/smoke/smoke_framework/` (`common`, `process`, `summary`, `csvio`, `logscan`, `fs`, `local_lane`, `orchestration`, `tokens`, `statusfx`, `mapgen`, `mapgen_schema`, `mapgen_validation`, `mapgen_parser`, `mapgen_sweep_lane`, `mapgen_matrix_lane`, `mapgen_runtime`, `stats`, `helo_metrics`, `core_lane`, `core_parser`, `splitscreen_parser`, `splitscreen_runtime`, `splitscreen_baseline_lane`, `splitscreen_cap_lane`, `splitscreen_lanes`, `lan_helo_chunk_lane`, `lan_helo_chunk_parser`, `lan_helo_chunk_args`, `lan_helo_chunk_launch`, `lan_helo_chunk_runtime`, `lan_helo_chunk_post`, `lan_helo_chunk_summary`, `lane_helpers`, `lane_matrix`, `lane_status`, `churn_statusfx_lane`, `churn_join_leave`, `churn_statusfx_parser`, `lobby_remote_lane`, `lobby_remote_parser`, `self_check_lane`, `parser_common`, `reports`).
+- Shared framework helpers live under `tests/smoke/smoke_framework/` (`common`, `process`, `summary`, `csvio`, `logscan`, `fs`, `local_lane`, `orchestration`, `tokens`, `statusfx`, `mapgen`, `mapgen_schema`, `mapgen_validation`, `mapgen_parser`, `mapgen_sweep_lane`, `mapgen_matrix_lane`, `mapgen_runtime`, `stats`, `helo_metrics`, `core_lane`, `core_parser`, `splitscreen_parser`, `splitscreen_runtime`, `splitscreen_baseline_lane`, `splitscreen_cap_lane`, `splitscreen_lanes`, `lan_helo_chunk_lane`, `lan_helo_chunk_parser`, `lan_helo_chunk_args`, `lan_helo_chunk_launch`, `lan_helo_chunk_runtime`, `lan_helo_chunk_post`, `lan_helo_chunk_summary`, `lane_helpers`, `lane_matrix`, `lane_status`, `churn_statusfx_lane`, `churn_join_leave`, `churn_statusfx_parser`, `inventory_lane`, `inventory_parser`, `lobby_remote_lane`, `lobby_remote_parser`, `self_check_lane`, `parser_common`, `reports`).
 - `pyproject.toml` documents runtime expectations (`stdlib`-only dependencies) and an installable console script.
 - `lan-helo-chunk` execution and parser registration are split across `smoke_framework/lan_helo_chunk_lane.py` and `smoke_framework/lan_helo_chunk_parser.py`.
 - `lan-helo-chunk` argument normalization and launch/runtime plumbing are further split into `smoke_framework/lan_helo_chunk_args.py` and `smoke_framework/lan_helo_chunk_launch.py`.
@@ -37,6 +37,7 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
 - `lan-helo-chunk`
   - Base host/client orchestration lane.
   - Produces `summary.env`, stdout logs, per-instance homes/logs, and supports mapgen/reload and lobby instrumentation flags.
+  - `--post-pass-wait` can hold instances briefly after pass criteria for additional in-game smoke hooks without extra process relaunches.
 - `helo-soak`
   - Repeats LAN HELO smoke runs (default 10x).
   - Emits `soak_results.csv` and aggregate HTML.
@@ -51,7 +52,15 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
   - Emits `save_reload_owner_encoding_results.csv`.
 - `join-leave-churn`
   - Repeatedly kills/relaunches clients and verifies rejoin progress.
-  - Optional ready-sync and join-reject trace assertions.
+  - Optional ready-sync/join-reject trace assertions and optional host auto-start/auto-enter controls.
+- `inventory-lifecycle`
+  - Fast in-game coverage of packet-driven inventory handlers (`USEI/EQUI/EQUS/EQUM/COOK`) with cleanup assertions.
+- `inventory-edge-cases`
+  - Extends lifecycle coverage with `EQUM` invalid-slot and `COOK` zero-count edge assertions.
+- `inventory-churn`
+  - Runs inventory packet coverage under high-slot active gameplay packet churn.
+- `inventory-fast-pass`
+  - Full inventory lifecycle + edge + churn coverage with minimal restarts (2 child runs).
 - `status-effect-queue-init`
   - Startup (1p/5p/15p) plus rejoin lanes with queue-owner safety assertions.
   - Emits `status_effect_queue_results.csv`.
@@ -214,6 +223,25 @@ python3 tests/smoke/smoke_runner.py join-leave-churn \
   --auto-ready 1 \
   --trace-ready-sync 1 \
   --require-ready-sync 1
+```
+
+Run join/leave churn in active gameplay (host auto-start + auto-enter):
+
+```bash
+python3 tests/smoke/smoke_runner.py join-leave-churn \
+  --instances 8 \
+  --churn-cycles 2 \
+  --churn-count 2 \
+  --host-auto-start 1 \
+  --host-auto-enter-dungeon 1
+```
+
+Run fast inventory compatibility pass (lifecycle + edge + churn):
+
+```bash
+python3 tests/smoke/smoke_runner.py inventory-fast-pass \
+  --app /Users/sayhiben/dev/Barony-8p/build-mac-smoke/barony.app/Contents/MacOS/barony \
+  --datadir "$HOME/Library/Application Support/Steam/steamapps/common/Barony/Barony.app/Contents/Resources"
 ```
 
 Run status-effect queue initialization + rejoin safety lane:

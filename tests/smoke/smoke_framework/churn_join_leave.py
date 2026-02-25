@@ -68,8 +68,10 @@ class SlotLifecycle:
                 {
                     "BARONY_SMOKE_ROLE": "host",
                     "BARONY_SMOKE_EXPECTED_PLAYERS": str(self.ns.instances),
-                    "BARONY_SMOKE_AUTO_START": "0",
-                    "BARONY_SMOKE_AUTO_ENTER_DUNGEON": "0",
+                    "BARONY_SMOKE_AUTO_START": str(self.ns.host_auto_start),
+                    "BARONY_SMOKE_AUTO_START_DELAY_SECS": str(self.ns.host_auto_start_delay),
+                    "BARONY_SMOKE_AUTO_ENTER_DUNGEON": str(self.ns.host_auto_enter_dungeon),
+                    "BARONY_SMOKE_AUTO_ENTER_DUNGEON_DELAY_SECS": str(self.ns.host_auto_enter_dungeon_delay),
                     "BARONY_SMOKE_HELO_CHUNK_TX_MODE": self.ns.helo_chunk_tx_mode,
                 }
             )
@@ -141,6 +143,10 @@ def validate_join_leave_churn_args(ns: argparse.Namespace) -> None:
     require_uint("--force-chunk", ns.force_chunk, minimum=0, maximum=1)
     require_uint("--chunk-payload-max", ns.chunk_payload_max, minimum=64, maximum=900)
     require_uint("--auto-ready", ns.auto_ready, minimum=0, maximum=1)
+    require_uint("--host-auto-start", ns.host_auto_start, minimum=0, maximum=1)
+    require_uint("--host-auto-start-delay", ns.host_auto_start_delay)
+    require_uint("--host-auto-enter-dungeon", ns.host_auto_enter_dungeon, minimum=0, maximum=1)
+    require_uint("--host-auto-enter-dungeon-delay", ns.host_auto_enter_dungeon_delay)
     require_uint("--trace-ready-sync", ns.trace_ready_sync, minimum=0, maximum=1)
     require_uint("--require-ready-sync", ns.require_ready_sync, minimum=0, maximum=1)
     require_uint("--trace-join-rejects", ns.trace_join_rejects, minimum=0, maximum=1)
@@ -148,6 +154,8 @@ def validate_join_leave_churn_args(ns: argparse.Namespace) -> None:
         fail("--require-ready-sync requires --auto-ready 1")
     if ns.require_ready_sync and not ns.trace_ready_sync:
         fail("--require-ready-sync requires --trace-ready-sync 1")
+    if ns.host_auto_enter_dungeon and not ns.host_auto_start:
+        fail("--host-auto-enter-dungeon requires --host-auto-start 1")
     normalized_mode = canonicalize_lan_tx_mode(ns.helo_chunk_tx_mode)
     if normalized_mode is None:
         fail(
@@ -325,6 +333,10 @@ def build_join_leave_churn_summary(
         "CHUNK_PAYLOAD_MAX": ns.chunk_payload_max,
         "HELO_CHUNK_TX_MODE": ns.helo_chunk_tx_mode,
         "AUTO_READY": ns.auto_ready,
+        "HOST_AUTO_START": ns.host_auto_start,
+        "HOST_AUTO_START_DELAY_SECS": ns.host_auto_start_delay,
+        "HOST_AUTO_ENTER_DUNGEON": ns.host_auto_enter_dungeon,
+        "HOST_AUTO_ENTER_DUNGEON_DELAY_SECS": ns.host_auto_enter_dungeon_delay,
         "TRACE_READY_SYNC": ns.trace_ready_sync,
         "REQUIRE_READY_SYNC": ns.require_ready_sync,
         "TRACE_JOIN_REJECTS": ns.trace_join_rejects,

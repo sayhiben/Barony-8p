@@ -12,6 +12,7 @@ from smoke_framework.churn_statusfx_parser import (
     register_status_effect_queue_init_parser,
 )
 from smoke_framework.core_parser import register_core_lane_parsers
+from smoke_framework.inventory_parser import register_inventory_lane_parsers
 from smoke_framework.lan_helo_chunk_parser import register_lan_helo_chunk_parser
 from smoke_framework.lobby_remote_parser import register_lobby_remote_parsers
 from smoke_framework.mapgen_parser import register_mapgen_lane_parsers
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_core_lane_parsers(sub, default_app=DEFAULT_APP)
     register_join_leave_churn_parser(sub, default_app=DEFAULT_APP)
     register_status_effect_queue_init_parser(sub, default_app=DEFAULT_APP)
+    register_inventory_lane_parsers(sub, default_app=DEFAULT_APP)
     register_lobby_remote_parsers(sub, default_app=DEFAULT_APP)
     register_splitscreen_lane_parsers(sub, default_app=DEFAULT_APP)
     register_mapgen_lane_parsers(sub, default_app=DEFAULT_APP)

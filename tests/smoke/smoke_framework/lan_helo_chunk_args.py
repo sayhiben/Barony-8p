@@ -16,6 +16,7 @@ def validate_and_normalize_args(ns: argparse.Namespace) -> None:
     require_uint("--instances", ns.instances, minimum=1, maximum=15)
     require_uint("--stagger", ns.stagger)
     require_uint("--timeout", ns.timeout)
+    require_uint("--post-pass-wait", ns.post_pass_wait)
     require_uint("--auto-start-delay", ns.auto_start_delay)
     require_uint("--auto-enter-dungeon-delay", ns.auto_enter_dungeon_delay)
     if ns.auto_enter_dungeon_repeats is not None:

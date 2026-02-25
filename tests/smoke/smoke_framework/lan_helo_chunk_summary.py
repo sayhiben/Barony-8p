@@ -66,6 +66,7 @@ def build_summary_data(
         "MAPGEN_FOUND": post["MAPGEN_FOUND"],
         "MAPGEN_COUNT": post["MAPGEN_COUNT"],
         "MAPGEN_SAMPLES_REQUESTED": ns.mapgen_samples,
+        "POST_PASS_WAIT_SECS": ns.post_pass_wait,
         "MAPGEN_WAIT_REASON": mapgen_wait_reason,
         "GAMESTART_FOUND": post["GAMESTART_FOUND"],
         "MAPGEN_ROOMS": post["MAPGEN_ROOMS"],

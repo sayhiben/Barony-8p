@@ -122,6 +122,35 @@ int heloChunkPayloadMax()
 #endif
 }
 
+void traceInventoryPacketUseForSmoke(const int client, const int count)
+{
+#ifdef BARONY_SMOKE_TESTS
+	SmokeTestHooks::Net::traceInventoryPacketUse(client, count);
+#else
+	(void)client;
+	(void)count;
+#endif
+}
+
+void traceInventoryPacketEquipForSmoke(const char* op, const int client, const int count,
+	const bool cleanupRequired, const bool cleanupCleared, const int equipResult,
+	const int slot, const char* edge)
+{
+#ifdef BARONY_SMOKE_TESTS
+	SmokeTestHooks::Net::traceInventoryPacketEquip(op, client, count,
+		cleanupRequired, cleanupCleared, equipResult, slot, edge);
+#else
+	(void)op;
+	(void)client;
+	(void)count;
+	(void)cleanupRequired;
+	(void)cleanupCleared;
+	(void)equipResult;
+	(void)slot;
+	(void)edge;
+#endif
+}
+
 Uint16 nextHeloTransferIdForPlayer(const int player)
 {
 	if ( player < 0 || player >= MAXPLAYERS )
@@ -8454,19 +8483,21 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		//}
 	}},
 
-	// use item
-	{'USEI', [](){
-		const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
-		auto item = newItem(
-		    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
-		    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
-		    SDLNet_Read32(&net_packet->data[12]),
-		    SDLNet_Read32(&net_packet->data[16]),
-		    SDLNet_Read32(&net_packet->data[20]),
-		    net_packet->data[24],
-		    &stats[client]->inventory);
-		useItem(item, client, nullptr, false, true);
-	}},
+		// use item
+		{'USEI', [](){
+			const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
+			const int itemCount = static_cast<int>(SDLNet_Read32(&net_packet->data[16]));
+			auto item = newItem(
+			    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
+			    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
+			    SDLNet_Read32(&net_packet->data[12]),
+			    itemCount,
+			    SDLNet_Read32(&net_packet->data[20]),
+			    net_packet->data[24],
+			    &stats[client]->inventory);
+			useItem(item, client, nullptr, false, true);
+			traceInventoryPacketUseForSmoke(client, itemCount);
+		}},
 
 	// use loot bag
 	{ 'LOOT', []() {
@@ -8475,50 +8506,67 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 		Stat::emptyLootingBag(client, appearance);
 	} },
 
-	// equip item (as a weapon)
-	{'EQUI', [](){
-		const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
-		auto item = newItem(
-		    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
-		    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
-		    SDLNet_Read32(&net_packet->data[12]),
-		    SDLNet_Read32(&net_packet->data[16]),
-		    SDLNet_Read32(&net_packet->data[20]),
-		    net_packet->data[24],
-		    &stats[client]->inventory);
-		EquipItemResult res = equipItem(item, &stats[client]->weapon, client, false);
-		cleanupNetEquipTempItem(item, res);
-	}},
+		// equip item (as a weapon)
+		{'EQUI', [](){
+			const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
+			const int itemCount = static_cast<int>(SDLNet_Read32(&net_packet->data[16]));
+			auto item = newItem(
+			    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
+			    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
+			    SDLNet_Read32(&net_packet->data[12]),
+			    itemCount,
+			    SDLNet_Read32(&net_packet->data[20]),
+			    net_packet->data[24],
+			    &stats[client]->inventory);
+			EquipItemResult res = equipItem(item, &stats[client]->weapon, client, false);
+			cleanupNetEquipTempItem(item, res);
+			const bool cleanupRequired = (res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
+				|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP);
+			const bool cleanupCleared = (item == nullptr);
+			traceInventoryPacketEquipForSmoke("EQUI", client, itemCount,
+				cleanupRequired, cleanupCleared, static_cast<int>(res),
+				static_cast<int>(EQUIP_ITEM_SLOT_WEAPON), "none");
+		}},
 
-	// equip item (as a shield)
-	{'EQUS', [](){
-		const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
-		auto item = newItem(
-		    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
-		    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
-		    SDLNet_Read32(&net_packet->data[12]),
-		    SDLNet_Read32(&net_packet->data[16]),
-		    SDLNet_Read32(&net_packet->data[20]),
-		    net_packet->data[24],
-		    &stats[client]->inventory);
-		EquipItemResult res = equipItem(item, &stats[client]->shield, client, false);
-		cleanupNetEquipTempItem(item, res);
-	}},
+		// equip item (as a shield)
+		{'EQUS', [](){
+			const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
+			const int itemCount = static_cast<int>(SDLNet_Read32(&net_packet->data[16]));
+			auto item = newItem(
+			    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
+			    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
+			    SDLNet_Read32(&net_packet->data[12]),
+			    itemCount,
+			    SDLNet_Read32(&net_packet->data[20]),
+			    net_packet->data[24],
+			    &stats[client]->inventory);
+			EquipItemResult res = equipItem(item, &stats[client]->shield, client, false);
+			cleanupNetEquipTempItem(item, res);
+			const bool cleanupRequired = (res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
+				|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP);
+			const bool cleanupCleared = (item == nullptr);
+			traceInventoryPacketEquipForSmoke("EQUS", client, itemCount,
+				cleanupRequired, cleanupCleared, static_cast<int>(res),
+				static_cast<int>(EQUIP_ITEM_SLOT_SHIELD), "none");
+		}},
 
-	// consume torch item shield slot
-	{ 'COOK', []() {
-		const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
-		auto item = newItem(
-			static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
-			static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
-			SDLNet_Read32(&net_packet->data[12]),
-			SDLNet_Read32(&net_packet->data[16]),
-			SDLNet_Read32(&net_packet->data[20]),
-			net_packet->data[24],
-			&stats[client]->inventory);
-		if ( stats[client]->shield )
-		{
-			// deselect shield
+		// consume torch item shield slot
+		{ 'COOK', []() {
+			const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
+			const int itemCount = static_cast<int>(SDLNet_Read32(&net_packet->data[16]));
+			auto item = newItem(
+				static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
+				static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
+				SDLNet_Read32(&net_packet->data[12]),
+				itemCount,
+				SDLNet_Read32(&net_packet->data[20]),
+				net_packet->data[24],
+				&stats[client]->inventory);
+			EquipItemResult res = EQUIP_ITEM_FAIL_CANT_UNEQUIP;
+			bool usedEquipPath = false;
+			if ( stats[client]->shield )
+			{
+				// deselect shield
 			if ( stats[client]->shield->node )
 			{
 				list_RemoveNode(stats[client]->shield->node);
@@ -8529,71 +8577,99 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 			}
 			stats[client]->shield = nullptr;
 		}
-		if ( item->count > 0 )
-		{
-			bool oldIntro = intro;
-			intro = true;
-			EquipItemResult res = equipItem(item, &stats[client]->shield, client, false);
-			intro = oldIntro;
-			cleanupNetEquipTempItem(item, res);
-		}
-		else
-		{
-			disposeNetTempItem(item);
-		}
-	} },
-
-	// equip item (any other slot)
-	{'EQUM', [](){
-		const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
-		auto item = newItem(
-		    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
-		    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
-		    SDLNet_Read32(&net_packet->data[12]),
-		    SDLNet_Read32(&net_packet->data[16]),
-		    SDLNet_Read32(&net_packet->data[20]),
-		    net_packet->data[24],
-		    &stats[client]->inventory);
-		
-		EquipItemResult res = EQUIP_ITEM_FAIL_CANT_UNEQUIP;
-		switch ( net_packet->data[27] )
-		{
-			case EQUIP_ITEM_SLOT_WEAPON:
-				res = equipItem(item, &stats[client]->weapon, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_SHIELD:
+			if ( item->count > 0 )
+			{
+				bool oldIntro = intro;
+				intro = true;
 				res = equipItem(item, &stats[client]->shield, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_MASK:
-				res = equipItem(item, &stats[client]->mask, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_HELM:
-				res = equipItem(item, &stats[client]->helmet, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_GLOVES:
-				res = equipItem(item, &stats[client]->gloves, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_BOOTS:
-				res = equipItem(item, &stats[client]->shoes, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_BREASTPLATE:
-				res = equipItem(item, &stats[client]->breastplate, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_CLOAK:
-				res = equipItem(item, &stats[client]->cloak, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_AMULET:
-				res = equipItem(item, &stats[client]->amulet, client, false);
-				break;
-			case EQUIP_ITEM_SLOT_RING:
-				res = equipItem(item, &stats[client]->ring, client, false);
-				break;
-			default:
-				break;
-		}
+				usedEquipPath = true;
+				intro = oldIntro;
+				cleanupNetEquipTempItem(item, res);
+			}
+			else
+			{
+				disposeNetTempItem(item);
+			}
+			const bool cleanupRequired = usedEquipPath
+				? (res == EQUIP_ITEM_SUCCESS_UPDATE_QTY || res == EQUIP_ITEM_FAIL_CANT_UNEQUIP)
+				: true;
+			const bool cleanupCleared = (item == nullptr);
+			traceInventoryPacketEquipForSmoke("COOK", client, itemCount,
+				cleanupRequired, cleanupCleared, static_cast<int>(res),
+				static_cast<int>(EQUIP_ITEM_SLOT_SHIELD),
+				itemCount > 0 ? "none" : "count-zero");
+		} },
 
-		cleanupNetEquipTempItem(item, res);
-	}},
+		// equip item (any other slot)
+		{'EQUM', [](){
+			const int client = std::min(net_packet->data[25], (Uint8)(MAXPLAYERS - 1));
+			const int itemCount = static_cast<int>(SDLNet_Read32(&net_packet->data[16]));
+			const int requestedSlot = static_cast<int>(net_packet->data[27]);
+			auto item = newItem(
+			    static_cast<ItemType>(SDLNet_Read32(&net_packet->data[4])),
+			    static_cast<Status>(SDLNet_Read32(&net_packet->data[8])),
+			    SDLNet_Read32(&net_packet->data[12]),
+			    itemCount,
+			    SDLNet_Read32(&net_packet->data[20]),
+			    net_packet->data[24],
+			    &stats[client]->inventory);
+			
+			EquipItemResult res = EQUIP_ITEM_FAIL_CANT_UNEQUIP;
+			bool slotRecognized = false;
+			switch ( net_packet->data[27] )
+			{
+				case EQUIP_ITEM_SLOT_WEAPON:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->weapon, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_SHIELD:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->shield, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_MASK:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->mask, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_HELM:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->helmet, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_GLOVES:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->gloves, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_BOOTS:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->shoes, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_BREASTPLATE:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->breastplate, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_CLOAK:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->cloak, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_AMULET:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->amulet, client, false);
+					break;
+				case EQUIP_ITEM_SLOT_RING:
+					slotRecognized = true;
+					res = equipItem(item, &stats[client]->ring, client, false);
+					break;
+				default:
+					break;
+			}
+
+			cleanupNetEquipTempItem(item, res);
+			const bool cleanupRequired = (res == EQUIP_ITEM_SUCCESS_UPDATE_QTY
+				|| res == EQUIP_ITEM_FAIL_CANT_UNEQUIP);
+			const bool cleanupCleared = (item == nullptr);
+			traceInventoryPacketEquipForSmoke("EQUM", client, itemCount,
+				cleanupRequired, cleanupCleared, static_cast<int>(res), requestedSlot,
+				slotRecognized ? "none" : "invalid-slot");
+		}},
 
 	// update appearance of item
 	{ 'EQUA', []() {

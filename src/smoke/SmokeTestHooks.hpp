@@ -86,6 +86,7 @@ namespace Gameplay
 {
 	void tickAutoEnterDungeon();
 	void tickRemoteCombatAutopilot();
+	void tickInventoryPacketAutopilot();
 	void tickLocalSplitscreenBaseline();
 	void tickLocalSplitscreenCap();
 }
@@ -99,13 +100,17 @@ namespace GameUI
 	void traceStatusEffectQueueUpdate(int slot, int owner);
 }
 
-namespace Net
-{
-	bool isForceHeloChunkEnabled();
-	int heloChunkPayloadMaxOverride(int defaultPayloadMax, int minPayloadMax = 64);
-	bool isJoinRejectTraceEnabled();
-	void traceLobbyJoinReject(Uint32 result, Uint8 requestedSlot, const bool lockedSlots[MAXPLAYERS], const bool disconnectedSlots[MAXPLAYERS]);
-}
+	namespace Net
+	{
+		bool isForceHeloChunkEnabled();
+		int heloChunkPayloadMaxOverride(int defaultPayloadMax, int minPayloadMax = 64);
+		bool isJoinRejectTraceEnabled();
+		void traceLobbyJoinReject(Uint32 result, Uint8 requestedSlot, const bool lockedSlots[MAXPLAYERS], const bool disconnectedSlots[MAXPLAYERS]);
+		bool isInventoryPacketTraceEnabled();
+		void traceInventoryPacketUse(int client, int count);
+		void traceInventoryPacketEquip(const char* op, int client, int count, bool cleanupRequired,
+			bool cleanupCleared, int equipResult, int slot, const char* edge);
+	}
 
 namespace Combat
 {

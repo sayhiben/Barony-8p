@@ -37,6 +37,43 @@ namespace Net
 		return enabled;
 	}
 
+	bool isInventoryPacketTraceEnabled()
+	{
+		static const bool enabled = parseEnvBool("BARONY_SMOKE_TRACE_INVENTORY_PACKETS", false);
+		return enabled;
+	}
+
+	void traceInventoryPacketUse(const int client, const int count)
+	{
+		if ( !isInventoryPacketTraceEnabled() )
+		{
+			return;
+		}
+		printlog("[SMOKE]: inventory packet op=USEI client=%d count=%d cleanup_required=0 cleanup_cleared=0 slot=-1 edge=none status=ok",
+			client, count);
+	}
+
+	void traceInventoryPacketEquip(const char* op, const int client, const int count,
+		const bool cleanupRequired, const bool cleanupCleared, const int equipResult,
+		const int slot, const char* edge)
+	{
+		if ( !isInventoryPacketTraceEnabled() )
+		{
+			return;
+		}
+		const bool ok = !cleanupRequired || cleanupCleared;
+		printlog("[SMOKE]: inventory packet op=%s client=%d count=%d cleanup_required=%d cleanup_cleared=%d equip_result=%d slot=%d edge=%s status=%s",
+			op ? op : "UNKN",
+			client,
+			count,
+			cleanupRequired ? 1 : 0,
+			cleanupCleared ? 1 : 0,
+			equipResult,
+			slot,
+			edge ? edge : "none",
+			ok ? "ok" : "fail");
+	}
+
 	void traceLobbyJoinReject(const Uint32 result, const Uint8 requestedSlot, const bool lockedSlots[MAXPLAYERS], const bool disconnectedSlots[MAXPLAYERS])
 	{
 		if ( !isJoinRejectTraceEnabled() )

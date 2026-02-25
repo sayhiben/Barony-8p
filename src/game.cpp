@@ -3640,6 +3640,10 @@ void gameLogic(void)
 				entity->ranbehavior = false;
 			}
 
+#ifdef BARONY_SMOKE_TESTS
+			SmokeTestHooks::Gameplay::tickInventoryPacketAutopilot();
+#endif
+
 			Player::PlayerMechanics_t::ensembleMusicUpdate();
 
 			// world UI
@@ -7419,12 +7423,6 @@ int main(int argc, char** argv)
 	#ifdef BARONY_SMOKE_TESTS
 		if ( smokeMapgenIntegration.enabled )
 		{
-			printlog("[SMOKE][MAPGEN][INTEGRATION]: starting levels=%s players=%d..%d runs=%d csv=%s",
-				smokeMapgenIntegration.levelsCsv.c_str(),
-				smokeMapgenIntegration.minPlayers,
-				smokeMapgenIntegration.maxPlayers,
-				smokeMapgenIntegration.runsPerPlayer,
-				smokeMapgenIntegration.outputCsvPath.c_str());
 			int smokeResult = SmokeTestHooks::Mapgen::runIntegrationMatrix(smokeMapgenIntegration);
 			if ( !load_successful )
 			{

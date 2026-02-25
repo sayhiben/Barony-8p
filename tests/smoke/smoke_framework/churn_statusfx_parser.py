@@ -48,6 +48,30 @@ def register_join_leave_churn_parser(
     )
     churn.add_argument("--auto-ready", type=int, default=0, help="Enable BARONY_SMOKE_AUTO_READY on clients (0/1).")
     churn.add_argument(
+        "--host-auto-start",
+        type=int,
+        default=0,
+        help="Enable BARONY_SMOKE_AUTO_START on host (0/1).",
+    )
+    churn.add_argument(
+        "--host-auto-start-delay",
+        type=int,
+        default=2,
+        help="Host auto-start delay after full lobby (seconds).",
+    )
+    churn.add_argument(
+        "--host-auto-enter-dungeon",
+        type=int,
+        default=0,
+        help="Enable BARONY_SMOKE_AUTO_ENTER_DUNGEON on host (0/1).",
+    )
+    churn.add_argument(
+        "--host-auto-enter-dungeon-delay",
+        type=int,
+        default=3,
+        help="Host auto-enter delay after game start (seconds).",
+    )
+    churn.add_argument(
         "--trace-ready-sync",
         type=int,
         default=0,

@@ -61,6 +61,12 @@ def _add_base_lane_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--require-helo", type=int, default=None, help="Require HELO chunk/reassembly checks (0/1).")
     parser.add_argument("--require-mapgen", type=int, default=0, help="Require dungeon mapgen summary in host log (0/1).")
     parser.add_argument("--mapgen-samples", type=int, default=1, help="Required number of mapgen summary lines.")
+    parser.add_argument(
+        "--post-pass-wait",
+        type=int,
+        default=0,
+        help="Extra seconds to keep instances alive after pass conditions are first met.",
+    )
     parser.add_argument("--outdir", default=None, help="Artifact directory.")
     parser.add_argument("--keep-running", action="store_true", help="Do not kill launched instances on exit.")
 

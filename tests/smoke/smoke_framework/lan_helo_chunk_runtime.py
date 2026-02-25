@@ -78,9 +78,12 @@ def run_runtime_wait_loop(
         return "fail", state
 
     mapgen_reload_complete_tick = 0.0
+    post_pass_wait = max(0, int(getattr(ns, "post_pass_wait", 0)))
+    post_pass_deadline = 0.0
     result = "fail"
     scan_cache = LogScanCache()
     while time.monotonic() < deadline:
+        now = time.monotonic()
         host_chunk_lines = file_count_fixed_lines(
             host_log,
             "sending chunked HELO:",
@@ -154,8 +157,8 @@ def run_runtime_wait_loop(
         if ns.require_mapgen and ns.auto_enter_dungeon and ns.mapgen_reload_same_level and ns.auto_enter_dungeon_repeats > 0:
             if reload_transition_lines >= ns.auto_enter_dungeon_repeats and mapgen_count < ns.mapgen_samples:
                 if mapgen_reload_complete_tick == 0:
-                    mapgen_reload_complete_tick = time.monotonic()
-                elif time.monotonic() - mapgen_reload_complete_tick >= 5:
+                    mapgen_reload_complete_tick = now
+                elif now - mapgen_reload_complete_tick >= 5:
                     state["mapgen_wait_reason"] = "reload-complete-no-mapgen-samples"
                     break
             else:
@@ -197,7 +200,13 @@ def run_runtime_wait_loop(
             and int(optional["remote_combat_events_ok"])
         ):
             result = "pass"
-            break
+            if post_pass_wait <= 0:
+                break
+            if post_pass_deadline == 0.0:
+                post_pass_deadline = now + post_pass_wait
+                logger(f"Pass criteria met, holding instances for {post_pass_wait}s before shutdown")
+            elif now >= post_pass_deadline:
+                break
 
         time.sleep(1)
 

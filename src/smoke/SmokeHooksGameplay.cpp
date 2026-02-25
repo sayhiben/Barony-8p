@@ -2,12 +2,15 @@
 #include "SmokeHooksCommon.hpp"
 
 #include "../game.hpp"
+#include "../items.hpp"
 #include "../mod_tools.hpp"
 #include "../net.hpp"
 #include "../player.hpp"
 #include "../interface/interface.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <limits>
 
 namespace
@@ -167,11 +170,212 @@ namespace
 				static_cast<unsigned>(state.autoCombatDelayTicks / TICKS_PER_SECOND));
 		}
 		return state;
-	}
+		}
 
-	int firstConnectedRemoteSlot(const int expectedPlayers)
-	{
-		for ( int slot = 1; slot < MAXPLAYERS; ++slot )
+		enum class SmokeInventoryPacketOp : Uint8
+		{
+			USEI = 0,
+			EQUI,
+			EQUS,
+			EQUM_VALID,
+			COOK,
+			EQUM_INVALID,
+			COOK_ZERO
+		};
+
+		constexpr int kSmokeInventoryBaseActionCount = 5;
+		constexpr int kSmokeInventoryEdgeActionCount = 7;
+
+		struct SmokeInventoryPacketState
+		{
+			bool initialized = false;
+			bool enabled = false;
+			bool includeEdgeCases = false;
+			bool completionLogged = false;
+			int expectedPlayers = 2;
+			int driverClientSlot = 1;
+			int pulses = 0;
+			int actionIndex = 0;
+			int pulseIndex = 0;
+			Uint32 delayTicks = 0;
+			Uint32 nextSendTick = 0;
+			bool readyArmed = false;
+		};
+
+		static SmokeInventoryPacketState g_smokeInventoryPackets;
+
+		SmokeInventoryPacketState& smokeInventoryPacketState()
+		{
+			SmokeInventoryPacketState& state = g_smokeInventoryPackets;
+			if ( state.initialized )
+			{
+				return state;
+			}
+			state.initialized = true;
+
+			const bool smokeEnabled = parseEnvBool("BARONY_SMOKE_AUTOPILOT", false);
+			const std::string smokeRole = toLowerCopy(std::getenv("BARONY_SMOKE_ROLE"));
+			const bool smokeClient = smokeRole == "client";
+			state.pulses = parseEnvInt("BARONY_SMOKE_AUTO_INVENTORY_PULSES", 0, 0, 512);
+			state.includeEdgeCases = parseEnvBool("BARONY_SMOKE_AUTO_INVENTORY_INCLUDE_EDGE_CASES", false);
+			state.expectedPlayers = parseEnvInt("BARONY_SMOKE_EXPECTED_PLAYERS", 2, 1, MAXPLAYERS);
+			state.driverClientSlot = parseEnvInt("BARONY_SMOKE_AUTO_INVENTORY_CLIENT_SLOT", 0, 0, MAXPLAYERS - 1);
+			const int delaySeconds = parseEnvInt("BARONY_SMOKE_AUTO_INVENTORY_DELAY_SECS", 0, 0, 120);
+			state.delayTicks = static_cast<Uint32>(delaySeconds * TICKS_PER_SECOND);
+			const bool configRequested =
+				envHasValue("BARONY_SMOKE_AUTO_INVENTORY_PULSES")
+				|| envHasValue("BARONY_SMOKE_AUTO_INVENTORY_INCLUDE_EDGE_CASES")
+				|| envHasValue("BARONY_SMOKE_AUTO_INVENTORY_CLIENT_SLOT")
+				|| envHasValue("BARONY_SMOKE_AUTO_INVENTORY_DELAY_SECS");
+			state.enabled = smokeEnabled && smokeClient && state.pulses > 0;
+			if ( configRequested )
+			{
+				printlog("[SMOKE]: inventory autopilot config smoke=%d role=%s pulses=%d edge_cases=%d expected=%d client_slot=%d delay=%u enabled=%d",
+					smokeEnabled ? 1 : 0, smokeRole.c_str(), state.pulses, state.includeEdgeCases ? 1 : 0,
+					state.expectedPlayers, state.driverClientSlot,
+					static_cast<unsigned>(state.delayTicks / TICKS_PER_SECOND),
+					state.enabled ? 1 : 0);
+			}
+			if ( state.enabled )
+			{
+				printlog("[SMOKE]: inventory autopilot enabled expected=%d client_slot=%d pulses=%d edge_cases=%d delay=%u",
+					state.expectedPlayers, state.driverClientSlot, state.pulses, state.includeEdgeCases ? 1 : 0,
+					static_cast<unsigned>(state.delayTicks / TICKS_PER_SECOND));
+			}
+			return state;
+		}
+
+		int smokeInventoryActionCount(const SmokeInventoryPacketState& state)
+		{
+			return state.includeEdgeCases ? kSmokeInventoryEdgeActionCount : kSmokeInventoryBaseActionCount;
+		}
+
+		SmokeInventoryPacketOp smokeInventoryActionAt(const SmokeInventoryPacketState& state, const int actionIndex)
+		{
+			if ( actionIndex < 0 )
+			{
+				return SmokeInventoryPacketOp::USEI;
+			}
+			switch ( actionIndex )
+			{
+				case 0:
+					return SmokeInventoryPacketOp::USEI;
+				case 1:
+					return SmokeInventoryPacketOp::EQUI;
+				case 2:
+					return SmokeInventoryPacketOp::EQUS;
+				case 3:
+					return SmokeInventoryPacketOp::EQUM_VALID;
+				case 4:
+					return SmokeInventoryPacketOp::COOK;
+				case 5:
+					return state.includeEdgeCases ? SmokeInventoryPacketOp::EQUM_INVALID : SmokeInventoryPacketOp::USEI;
+				case 6:
+					return state.includeEdgeCases ? SmokeInventoryPacketOp::COOK_ZERO : SmokeInventoryPacketOp::USEI;
+				default:
+					return SmokeInventoryPacketOp::USEI;
+			}
+		}
+
+		const char* smokeInventoryOpName(const SmokeInventoryPacketOp op)
+		{
+			switch ( op )
+			{
+				case SmokeInventoryPacketOp::USEI:
+					return "USEI";
+				case SmokeInventoryPacketOp::EQUI:
+					return "EQUI";
+				case SmokeInventoryPacketOp::EQUS:
+					return "EQUS";
+				case SmokeInventoryPacketOp::EQUM_VALID:
+				case SmokeInventoryPacketOp::EQUM_INVALID:
+					return "EQUM";
+				case SmokeInventoryPacketOp::COOK:
+				case SmokeInventoryPacketOp::COOK_ZERO:
+					return "COOK";
+				default:
+					return "UNKN";
+			}
+		}
+
+		bool sendSmokeInventoryPacket(const SmokeInventoryPacketOp op, const Uint8 clientSlot,
+			int& outCount, int& outSlot, const char*& outEdge)
+		{
+			std::array<Uint8, NET_PACKET_SIZE> packetBytes = {};
+			UDPpacket packet = {};
+			packet.data = packetBytes.data();
+			packet.maxlen = static_cast<int>(packetBytes.size());
+			packet.address.host = net_server.host;
+			packet.address.port = net_server.port;
+			outCount = 1;
+			outSlot = -1;
+			outEdge = "none";
+
+			auto writeBase = [&](const char* opCode, const ItemType type, const Status status,
+				const Sint16 beatitude, const int count, const Uint32 appearance, const bool identified) {
+				memcpy(packet.data, opCode, 4);
+				SDLNet_Write32(static_cast<Uint32>(type), &packet.data[4]);
+				SDLNet_Write32(static_cast<Uint32>(status), &packet.data[8]);
+				SDLNet_Write32(static_cast<Uint32>(beatitude), &packet.data[12]);
+				SDLNet_Write32(static_cast<Uint32>(count), &packet.data[16]);
+				SDLNet_Write32(static_cast<Uint32>(appearance), &packet.data[20]);
+				packet.data[24] = identified ? 1 : 0;
+				packet.data[25] = clientSlot;
+				packet.len = 26;
+				outCount = count;
+			};
+
+			switch ( op )
+			{
+				case SmokeInventoryPacketOp::USEI:
+					writeBase("USEI", FOOD_BREAD, SERVICABLE, 0, 1, 0, true);
+					break;
+				case SmokeInventoryPacketOp::EQUI:
+					writeBase("EQUI", BRONZE_SWORD, SERVICABLE, 0, 1, 0, true);
+					packet.data[26] = static_cast<Uint8>(EQUIP_ITEM_SUCCESS_UPDATE_QTY);
+					packet.data[27] = static_cast<Uint8>(EQUIP_ITEM_SLOT_WEAPON);
+					packet.len = 28;
+					outSlot = static_cast<int>(EQUIP_ITEM_SLOT_WEAPON);
+					break;
+				case SmokeInventoryPacketOp::EQUS:
+					writeBase("EQUS", WOODEN_SHIELD, SERVICABLE, 0, 1, 0, true);
+					packet.data[26] = static_cast<Uint8>(EQUIP_ITEM_SUCCESS_UPDATE_QTY);
+					packet.data[27] = static_cast<Uint8>(EQUIP_ITEM_SLOT_SHIELD);
+					packet.len = 28;
+					outSlot = static_cast<int>(EQUIP_ITEM_SLOT_SHIELD);
+					break;
+				case SmokeInventoryPacketOp::EQUM_VALID:
+					writeBase("EQUM", WOODEN_SHIELD, SERVICABLE, 0, 1, 0, true);
+					packet.data[26] = static_cast<Uint8>(EQUIP_ITEM_SUCCESS_UPDATE_QTY);
+					packet.data[27] = static_cast<Uint8>(EQUIP_ITEM_SLOT_SHIELD);
+					packet.len = 28;
+					outSlot = static_cast<int>(EQUIP_ITEM_SLOT_SHIELD);
+					break;
+				case SmokeInventoryPacketOp::COOK:
+					writeBase("COOK", TOOL_TORCH, SERVICABLE, 0, 1, 0, true);
+					break;
+				case SmokeInventoryPacketOp::EQUM_INVALID:
+					writeBase("EQUM", LEATHER_HELM, SERVICABLE, 0, 1, 0, true);
+					packet.data[26] = static_cast<Uint8>(EQUIP_ITEM_SUCCESS_UPDATE_QTY);
+					packet.data[27] = static_cast<Uint8>(255);
+					packet.len = 28;
+					outSlot = 255;
+					outEdge = "invalid-slot";
+					break;
+				case SmokeInventoryPacketOp::COOK_ZERO:
+					writeBase("COOK", TOOL_TORCH, SERVICABLE, 0, 0, 0, true);
+					outEdge = "count-zero";
+					break;
+				default:
+					return false;
+			}
+
+			return sendPacketSafe(net_sock, -1, &packet, 0);
+		}
+
+		int firstConnectedRemoteSlot(const int expectedPlayers)
+		{
+			for ( int slot = 1; slot < MAXPLAYERS; ++slot )
 		{
 			if ( slot >= expectedPlayers )
 			{
@@ -544,10 +748,10 @@ namespace Gameplay
 			}
 		}
 
-	void tickRemoteCombatAutopilot()
-	{
-		SmokeRemoteCombatState& smoke = smokeRemoteCombatState();
-		if ( !smoke.hostAutopilotEnabled )
+		void tickRemoteCombatAutopilot()
+		{
+			SmokeRemoteCombatState& smoke = smokeRemoteCombatState();
+			if ( !smoke.hostAutopilotEnabled )
 		{
 			return;
 		}
@@ -659,13 +863,102 @@ namespace Gameplay
 			&& smoke.autoPausePulses > 0 )
 		{
 			smoke.pauseCompleteLogged = true;
-			printlog("[SMOKE]: remote-combat auto-pause complete pulses=%d", smoke.autoPausePulses);
+				printlog("[SMOKE]: remote-combat auto-pause complete pulses=%d", smoke.autoPausePulses);
+			}
 		}
-	}
 
-	void tickLocalSplitscreenBaseline()
-	{
-		SmokeLocalSplitscreenState& smoke = smokeLocalSplitscreenState();
+		void tickInventoryPacketAutopilot()
+		{
+			if ( multiplayer != CLIENT )
+			{
+				return;
+			}
+			SmokeInventoryPacketState& smoke = smokeInventoryPacketState();
+			if ( !smoke.enabled )
+			{
+				return;
+			}
+			if ( smoke.driverClientSlot > 0 && clientnum != smoke.driverClientSlot )
+			{
+				return;
+			}
+			if ( net_server.host == 0 || net_server.port == 0 )
+			{
+				return;
+			}
+			if ( loadnextlevel )
+			{
+				smoke.readyArmed = false;
+				return;
+			}
+			if ( currentlevel <= 0 )
+			{
+				smoke.readyArmed = false;
+				return;
+			}
+
+			const int connected = smokeConnectedPlayers();
+			if ( connected < smoke.expectedPlayers || !smokeConnectedPlayersLoaded() )
+			{
+				smoke.readyArmed = false;
+				return;
+			}
+
+			if ( smoke.pulseIndex >= smoke.pulses )
+			{
+				if ( !smoke.completionLogged )
+				{
+					smoke.completionLogged = true;
+					printlog("[SMOKE]: inventory autopilot complete pulses=%d actions_per_pulse=%d edge_cases=%d",
+						smoke.pulses, smokeInventoryActionCount(smoke), smoke.includeEdgeCases ? 1 : 0);
+				}
+				return;
+			}
+
+			if ( !smoke.readyArmed )
+			{
+				smoke.readyArmed = true;
+				smoke.nextSendTick = ticks + smoke.delayTicks;
+				printlog("[SMOKE]: inventory autopilot armed level=%d connected=%d expected=%d",
+					currentlevel, connected, smoke.expectedPlayers);
+				return;
+			}
+
+			if ( ticks < smoke.nextSendTick )
+			{
+				return;
+			}
+
+			const int actionCount = smokeInventoryActionCount(smoke);
+			if ( actionCount <= 0 )
+			{
+				return;
+			}
+
+			const SmokeInventoryPacketOp op = smokeInventoryActionAt(smoke, smoke.actionIndex);
+			int sentCount = 0;
+			int sentSlot = -1;
+			const char* edge = "none";
+			const bool sent = sendSmokeInventoryPacket(op, static_cast<Uint8>(clientnum), sentCount, sentSlot, edge);
+			printlog("[SMOKE]: inventory autopilot send op=%s pulse=%d/%d action=%d/%d count=%d slot=%d edge=%s status=%s",
+				smokeInventoryOpName(op),
+				smoke.pulseIndex + 1, smoke.pulses,
+				smoke.actionIndex + 1, actionCount,
+				sentCount, sentSlot, edge,
+				sent ? "ok" : "fail");
+
+			++smoke.actionIndex;
+			if ( smoke.actionIndex >= actionCount )
+			{
+				smoke.actionIndex = 0;
+				++smoke.pulseIndex;
+			}
+			smoke.nextSendTick = ticks + smoke.delayTicks;
+		}
+
+		void tickLocalSplitscreenBaseline()
+		{
+			SmokeLocalSplitscreenState& smoke = smokeLocalSplitscreenState();
 		if ( !smoke.enabled )
 		{
 			return;
