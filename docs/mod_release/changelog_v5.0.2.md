@@ -1,12 +1,13 @@
 # 8p-mod Changelog (v5.0.1 -> v5.0.2)
 
-Date: 2026-02-24
+Date: 2026-02-26
 Branch: `codex/8p-mod-5.0.2`
 
 ## Summary
 This prep cycle rebased the mod to upstream `v5.0.2`, then hardened compatibility and stability for 1-15 player behavior. The guiding policy remained:
 - preserve strict 1-4 parity with upstream behavior
 - tune only overflow paths (5-15)
+- resolve carry-over multiplayer regressions discovered during post-reconcile validation
 
 ## Major Changes
 
@@ -82,6 +83,28 @@ Changes:
 Why:
 - Upstream map/item generation changes shifted high-player economy and pacing envelopes; overflow retuning was needed to restore target behavior.
 
+### 6) Post-Reconcile Bugfix Pass (Hermit Ducks + Remote Enemy HP Bars)
+Files:
+- `src/items.hpp`
+- `src/items.cpp`
+- `src/charclass.cpp`
+- `src/actplayer.cpp`
+- `src/item_tool.cpp`
+- `src/mod_tools.cpp`
+- `src/net.cpp`
+- `src/interface/drawstatus.cpp`
+
+Changes:
+- Added canonical duck encoding/decoding helpers (`4` color variants, canonical span `MAXPLAYERS * 4`) and migrated duck owner/color callsites away from `items[TOOL_DUCK].variations`-based decoding.
+- Updated Hermit duck appearance generation and duck-in-hand checks to use canonical color/owner helpers.
+- Preserved canonical duck appearance when converting duck item -> summoned duck stat attributes.
+- Clamped incoming `DUCK` packet color requests to canonical color range.
+- Added runtime warning when `tool_duck` variation count is below canonical duck span, so mixed mod/datadir installs are explicit in logs.
+- Relaxed enemy HP bar send guard for remote players to avoid over-blocking on `net_clients[].host/port` zero values in P2P-style paths while preserving slot/disconnect/local-player checks.
+
+Why:
+- User-reported issues (host receiving other players' ducks / repeated duck fills, remote enemy HP bars not visible) traced to carry-over assumptions that were fragile under `MAXPLAYERS=15` and mixed-asset runtime setups.
+
 ## Validation Used During Prep
 
 Build:
@@ -112,6 +135,24 @@ Combined `p15 vs p4` summary from that pair:
 - food/player `0.7165` (target `0.65-0.78`) PASS
 - decorations `1.8968` (target `1.85-2.25`) PASS
 - blocking share `0.1857` (target `<=0.45`) PASS
+
+Additional post-reconcile validation (2026-02-26):
+- Build:
+```bash
+cmake -S . -B build-mac-smoke -G Ninja -DFMOD_ENABLED=OFF -DBARONY_SMOKE_TESTS=ON
+cmake --build build-mac-smoke -j8 --target barony
+```
+- Remote combat lane (LAN) PASS with remote contexts including `client-ENHP` and `client-DAMI`:
+  - `tests/smoke/artifacts/remote-combat-fix-20260226-001704`
+- Save/reload owner-encoding lane PASS:
+  - `tests/smoke/artifacts/save-reload-compat-duck-fix-20260226-002659`
+- Splitscreen cap lane PASS (`requested=8`, cap enforced `4`):
+  - `tests/smoke/artifacts/splitscreen-cap-duck-fix-20260226-002744`
+- Inventory fast-pass (lifecycle/edge/churn) PASS:
+  - `tests/smoke/artifacts/inventory-fast-pass-duck-fix-20260226-002822`
+- Steam/EOS follow-up lanes attempted; both blocked by missing local room-key prerequisites in this runtime context:
+  - Steam: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807`
+  - EOS: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141`
 
 ## Notes
 - This changelog documents prep work from the mod `v5.0.1` baseline to upstream-aligned `v5.0.2` compatibility.
