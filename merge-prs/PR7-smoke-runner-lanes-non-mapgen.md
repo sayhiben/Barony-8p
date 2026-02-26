@@ -17,6 +17,19 @@
 - `tests/smoke/pyproject.toml` and `tests/smoke/.python-version` were added for tool bootstrap consistency.
 - `lan-helo-chunk` internals are decomposed into focused helpers (`args`, `launch`, `runtime`, `post`, `summary`) to keep orchestration readable.
 
+## Validation Snapshot (2026-02-26)
+- `remote-combat-slot-bounds` (LAN) passed with required remote contexts (`client-ENHP`, `client-DAMI`, `client-DMGG`).
+  - Artifact: `tests/smoke/artifacts/remote-combat-fix-20260226-001704`
+- `save-reload-compat` passed after duck ownership encoding hardening changes.
+  - Artifact: `tests/smoke/artifacts/save-reload-compat-duck-fix-20260226-002659`
+- `splitscreen-cap` passed (`requested=8`, enforced cap `4`).
+  - Artifact: `tests/smoke/artifacts/splitscreen-cap-duck-fix-20260226-002744`
+- `inventory-fast-pass` passed all three sub-lanes (`lifecycle`, `edge`, `churn`).
+  - Artifact: `tests/smoke/artifacts/inventory-fast-pass-duck-fix-20260226-002822`
+- Backend handshake follow-ups were attempted but blocked by missing room key prerequisites in this local build/runtime context:
+  - Steam: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807` (`roomKeyFound=0`, `launchBlocked=1`)
+  - EOS: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141` (`roomKeyFound=0`, `launchBlocked=1`)
+
 ## Windows Validation Snapshot (2026-03-14)
 - Framework sanity:
   - `py -3 tests/smoke/smoke_runner.py framework-self-check` passed.

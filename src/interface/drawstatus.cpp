@@ -46,9 +46,7 @@ namespace
 			&& isValidEnemyBarPlayerSlot(index)
 			&& !client_disconnected[index]
 			&& !players[index]->isLocalPlayer()
-			&& net_clients
-			&& net_clients[index - 1].host != 0
-			&& net_clients[index - 1].port != 0;
+			&& net_clients;
 	}
 }
 

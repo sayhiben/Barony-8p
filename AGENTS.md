@@ -102,6 +102,21 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - Known intermittent issue remains: churn/rejoin can hit transient `lobby full` / `error code 16` retries before recovery; track with artifacts and do not conflate with unrelated lane failures.
 - Smoke compile/runtime gating is in place (`BARONY_SMOKE_TESTS`), and the preferred local lane path is local build binary + Steam `--datadir` assets.
 
+### Validation Addendum (2026-02-26)
+- Implemented canonical duck ownership/color encoding for Hermit ducks (4 color variants, owner-safe at `MAXPLAYERS=15`) and removed duck-owner/color decode dependence on `items[TOOL_DUCK].variations`.
+- Added runtime compatibility warning when `tool_duck` variations are below canonical span (`MAXPLAYERS * 4`); observed warning with Steam datadir (`variations=16`, canonical span `60`).
+- Enemy HP bar forwarding now uses remote-slot/disconnect/local-player guards only; it no longer hard-blocks send on `net_clients[].host/port` zero values.
+- LAN remote-combat validation passed with `client-ENHP` and `client-DAMI` contexts present.
+  - Artifact: `tests/smoke/artifacts/remote-combat-fix-20260226-001704`
+- Save/reload owner-encoding compatibility lane passed after duck encoding changes.
+  - Artifact: `tests/smoke/artifacts/save-reload-compat-duck-fix-20260226-002659`
+- Regression lanes passed:
+  - Splitscreen cap clamp (`/splitscreen 8 -> 4`): `tests/smoke/artifacts/splitscreen-cap-duck-fix-20260226-002744`
+  - Inventory fast-pass (lifecycle/edge/churn): `tests/smoke/artifacts/inventory-fast-pass-duck-fix-20260226-002822`
+- Steam/EOS backend handshake follow-up lanes were attempted but could not enter room-key handshake in this local build context (no room key captured, launch prerequisites blocked).
+  - Steam artifact: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807`
+  - EOS artifact: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141`
+
 ### Windows Validation Snapshot (2026-03-14)
 - VS2022 x64 Windows release build (`build-vs2022-x64`) now coexists cleanly with a smoke build (`build-vs2022-x64-smoke-nosteam`) after moving generated `Config.hpp` to the build directory.
 - Windows no-Steam smoke passes recorded at:

@@ -7849,7 +7849,7 @@ void actPlayer(Entity* my)
 						{
 							if ( item->getDuckPlayer() == PLAYER_NUM )
 							{
-								if ( ((item->appearance % items[TOOL_DUCK].variations) / MAXPLAYERS) == duck.first )
+								if ( item->getDuckColor() == duck.first )
 								{
 									birdInHand = true;
 									break;
@@ -7892,7 +7892,7 @@ void actPlayer(Entity* my)
 					int mapx = dirx ? 1 : map.width - 2;
 					int mapy = diry ? 1 : map.height - 2;
 
-					int appearance = it->first * MAXPLAYERS + PLAYER_NUM;
+					int appearance = Item::makeDuckAppearance(it->first, PLAYER_NUM);
 					Item* duckItem = newItem(TOOL_DUCK, EXCELLENT, 0, 1, appearance, true, nullptr);
 					duckItem->applyDuck(0, mapx * 16 + 8.0, mapy * 16 + 8.0, nullptr, true);
 					free(duckItem);
@@ -8165,7 +8165,7 @@ void actPlayer(Entity* my)
 				{
 					for ( auto& duck : players[PLAYER_NUM]->mechanics.ducksInARow )
 					{
-						if ( duck.first == ((stats[PLAYER_NUM]->shield->appearance % items[TOOL_DUCK].variations) / MAXPLAYERS) )
+						if ( duck.first == stats[PLAYER_NUM]->shield->getDuckColor() )
 						{
 							duck.second++;
 							if ( duck.second % (1 * TICKS_PER_SECOND) == 0 )

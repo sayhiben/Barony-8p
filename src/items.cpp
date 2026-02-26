@@ -1431,7 +1431,7 @@ Sint32 itemModel(const Item* const item, bool shortModel, Entity* creature)
 	}
 	else if ( item->type == TOOL_DUCK )
 	{
-		return items[TOOL_DUCK].index + (item->appearance % items[item->type].variations) / MAXPLAYERS;
+		return items[TOOL_DUCK].index + item->getDuckColor();
 	}
 	else if ( itemCategory(item) == SPELLBOOK || itemCategory(item) == TOME_SPELL )
 	{
@@ -1480,7 +1480,7 @@ Sint32 itemModelFirstperson(const Item* const item)
 	}
 	else if ( item->type == TOOL_DUCK )
 	{
-		return items[TOOL_DUCK].fpindex + (item->appearance % items[item->type].variations) / MAXPLAYERS;
+		return items[TOOL_DUCK].fpindex + item->getDuckColor();
 	}
 	return items[item->type].fpindex + item->appearance % items[item->type].variations;
 }
@@ -7738,7 +7738,55 @@ void clientUnequipSlotAndUpdateServer(const int player, const EquipItemSendToSer
 
 int Item::getDuckPlayer() const
 {
-	return (int)(appearance % items[type].variations) % MAXPLAYERS;
+	return getDuckPlayerFromAppearance(appearance);
+}
+
+int Item::getDuckColor() const
+{
+	return getDuckColorFromAppearance(appearance);
+}
+
+namespace
+{
+int normalizePositiveModulo(const int value, const int range)
+{
+	if ( range <= 0 )
+	{
+		return 0;
+	}
+	int result = value % range;
+	if ( result < 0 )
+	{
+		result += range;
+	}
+	return result;
+}
+}
+
+Uint32 Item::makeDuckAppearance(int color, int owner)
+{
+	const int safeColor = normalizePositiveModulo(color, kDuckColorVariants);
+	const int safeOwner = normalizePositiveModulo(owner, MAXPLAYERS);
+	return static_cast<Uint32>(safeColor * MAXPLAYERS + safeOwner);
+}
+
+int Item::normalizeDuckAppearance(const Uint32 encodedAppearance)
+{
+	if ( kDuckCanonicalAppearanceSpan <= 0 )
+	{
+		return 0;
+	}
+	return static_cast<int>(encodedAppearance % static_cast<Uint32>(kDuckCanonicalAppearanceSpan));
+}
+
+int Item::getDuckPlayerFromAppearance(const Uint32 encodedAppearance)
+{
+	return normalizeDuckAppearance(encodedAppearance) % MAXPLAYERS;
+}
+
+int Item::getDuckColorFromAppearance(const Uint32 encodedAppearance)
+{
+	return normalizeDuckAppearance(encodedAppearance) / MAXPLAYERS;
 }
 
 int Item::getLootBagPlayer() const

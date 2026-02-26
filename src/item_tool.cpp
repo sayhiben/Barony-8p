@@ -1987,7 +1987,7 @@ void Item::applyDuck(Uint32 parentUid, real_t x, real_t y, Entity* hitentity, bo
 			{
 				playSoundPos(summon->x, summon->y, 789 + local_rng.rand() % 5, 128);
 			}
-			int appearance = std::max(0, static_cast<int>(this->appearance % items[TOOL_DUCK].variations));
+			int appearance = Item::normalizeDuckAppearance(this->appearance);
 			summonedStats->setAttribute("duck_type", std::to_string(appearance));
 			if ( onLevelRespawn )
 			{

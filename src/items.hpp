@@ -721,9 +721,16 @@ public:
 	void foodTinGetDescriptionIndices(int* a, int* b, int* c) const;
 	void foodTinGetDescription(std::string& cookingMethod, std::string& protein, std::string& sides) const;
 	int foodGetPukeChance(Stat* eater) const;
+	static constexpr int kDuckColorVariants = 4;
+	static constexpr int kDuckCanonicalAppearanceSpan = MAXPLAYERS * kDuckColorVariants;
+	static Uint32 makeDuckAppearance(int color, int owner);
+	static int normalizeDuckAppearance(Uint32 appearance);
+	static int getDuckPlayerFromAppearance(Uint32 appearance);
+	static int getDuckColorFromAppearance(Uint32 appearance);
 	int getLootBagPlayer() const;
 	int getLootBagNumItems() const;
 	int getDuckPlayer() const;
+	int getDuckColor() const;
 
 	enum ItemBombPlacement : int
 	{

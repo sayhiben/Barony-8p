@@ -8903,7 +8903,7 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 	//Multiplayer duck code (server).
 	{ 'DUCK', []() {
 		const int player = std::min(net_packet->data[4], (Uint8)(MAXPLAYERS - 1));
-		const int duck = net_packet->data[5];
+		const int duck = static_cast<int>(net_packet->data[5] % Item::kDuckColorVariants);
 		players[player]->mechanics.pendingDucks.push_back(
 			std::make_pair(duck, ticks + (3 + (local_rng.rand() % 30)) * TICKS_PER_SECOND));
 	} },

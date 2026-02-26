@@ -1463,6 +1463,12 @@ void ItemTooltips_t::readItemsFromFile()
 	{
 		printlog("[JSON]: items.json hash verified successfully.");
 	}
+	if ( items[TOOL_DUCK].variations < Item::kDuckCanonicalAppearanceSpan )
+	{
+		printlog("[JSON]: Warning: tool_duck variations=%d below canonical duck span=%d (MAXPLAYERS=%d colors=%d). "
+			"Likely mod/datadir mismatch; duck ownership/color aliasing may occur in older builds.",
+			items[TOOL_DUCK].variations, Item::kDuckCanonicalAppearanceSpan, MAXPLAYERS, Item::kDuckColorVariants);
+	}
 
 	// validation against old items.txt
 	/*for ( int i = 0; i < NUMITEMS; ++i )
@@ -6572,7 +6578,7 @@ void ItemTooltips_t::formatItemDetails(const int player, std::string tooltipType
 		{
 			for ( auto& duck : players[player]->mechanics.ducksInARow )
 			{
-				if ( duck.first == ((item.appearance % items[TOOL_DUCK].variations) / MAXPLAYERS) )
+				if ( duck.first == item.getDuckColor() )
 				{
 					if ( duck.second >= 15 * 60 * TICKS_PER_SECOND )
 					{

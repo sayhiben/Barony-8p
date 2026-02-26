@@ -3211,8 +3211,8 @@ void initClass(const int player)
 			useItem(item, player);
 		}
 
-		Uint32 color = ((uniqueGameKey + player) % MAXPLAYERS);
-		item = newItem(TOOL_DUCK, EXCELLENT, 0, 1, MAXPLAYERS * color + player, true, nullptr);
+		Uint32 color = ((uniqueGameKey + player) % Item::kDuckColorVariants);
+		item = newItem(TOOL_DUCK, EXCELLENT, 0, 1, Item::makeDuckAppearance(color, player), true, nullptr);
 		if ( isLocalPlayer )
 		{
 			item2 = itemPickup(player, item);
@@ -3443,7 +3443,7 @@ void initClass(const int player)
 	players[player]->mechanics.ducksInARow.clear();
 	if ( client_classes[player] == CLASS_HERMIT )
 	{
-		players[player]->mechanics.ducksInARow.push_back(std::make_pair(((uniqueGameKey + player) % MAXPLAYERS), 0));
+		players[player]->mechanics.ducksInARow.push_back(std::make_pair(((uniqueGameKey + player) % Item::kDuckColorVariants), 0));
 	}
 
 	if ( stats[player]->playerRace == RACE_SALAMANDER && stats[player]->stat_appearance == 0 )

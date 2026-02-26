@@ -15,6 +15,12 @@ Through PR9, 1-15 support is intentionally scaffolded behind defaults to reduce 
 ## What and Why
 Flip `BARONY_SUPER_MULTIPLAYER` default ON and publish concise operator/reviewer release notes once all technical gates are green.
 
+## Release Note Addendum (User-Facing Bugfix Callout)
+When this stack is released, include a short multiplayer bugfix note:
+- Hermit duck ownership now uses canonical 15-player-safe encoding and no longer aliases through asset variation counts.
+- Added runtime warning for mod/datadir mismatches where duck asset variation count is below canonical span (`MAXPLAYERS * 4`), so users can self-diagnose mixed-version installs.
+- Remote clients now reliably receive enemy HP bar/damage indicator updates in LAN sessions even when peer host/port metadata is zeroed in P2P-style flows.
+
 ## Scope
 ### In Scope
 - One-line default flip in `CMakeLists.txt` (`BARONY_SUPER_MULTIPLAYER`)

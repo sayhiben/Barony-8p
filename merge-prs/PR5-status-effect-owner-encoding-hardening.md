@@ -54,6 +54,13 @@ cmake --build build-pr5 -j8 --target barony
   - Non-player owner path remains valid.
 - After smoke lanes exist (PR7+): run save/reload compatibility lane and attach artifact.
 
+## Field Report Follow-Up (2026-02-26)
+- User-reported Hermit duck ownership theft/spam was traced to owner/color decode assumptions tied to `items[TOOL_DUCK].variations` under `MAXPLAYERS=15`.
+- Branch implementation now uses canonical duck encoding helpers (`4` color variants, owner-safe modulo `MAXPLAYERS`) and migrates call sites away from variation-based decode.
+- Compatibility guard added: runtime warning when `tool_duck` variations are below canonical span (`MAXPLAYERS * 4`), to flag mod/datadir mismatches.
+- Validation artifact (save/reload owner compatibility lane, post-fix):
+  - `tests/smoke/artifacts/save-reload-compat-duck-fix-20260226-002659`
+
 ## Acceptance Criteria
 - [ ] Owner encoding/decoding is centralized in `status_effect_owner_encoding.hpp`.
 - [ ] No owner misattribution is observed at 1/8/15 slot tests.
