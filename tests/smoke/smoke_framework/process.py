@@ -21,6 +21,8 @@ def launch_local_instance(
     if set_home:
         env["HOME"] = str(home_dir)
     env.update(extra_env)
+    launch_cwd = home_dir / ".barony"
+    launch_cwd.mkdir(parents=True, exist_ok=True)
 
     args = [str(app), "-windowed", f"-size={size}"]
     if datadir:
@@ -28,7 +30,13 @@ def launch_local_instance(
 
     stdout_log.parent.mkdir(parents=True, exist_ok=True)
     with stdout_log.open("w", encoding="utf-8", errors="replace") as out:
-        proc = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT, env=env)
+        proc = subprocess.Popen(
+            args,
+            stdout=out,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=launch_cwd,
+        )
     return proc
 
 

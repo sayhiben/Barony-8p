@@ -513,6 +513,7 @@ include_directories(${PNG_INCLUDE_DIR})
 if (FMOD_FOUND)
 	include_directories(${FMOD_INCLUDE_DIR})
 endif()
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add the source directory
 #file(GLOB_RECURSE SOURCE_FILES src/*.c src/*.h) # Can't do this because it'd then compile barony and editor together. Which just won't work.
@@ -526,7 +527,7 @@ endif()
 
 #add_subdirectory(books)
  
-configure_file ( "${PROJECT_SOURCE_DIR}/src/Config.hpp.in" "${PROJECT_SOURCE_DIR}/src/Config.hpp")
+configure_file("${PROJECT_SOURCE_DIR}/src/Config.hpp.in" "${PROJECT_BINARY_DIR}/Config.hpp")
 
 message("***************************")
 message("Debug flags: ")

@@ -85,10 +85,13 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - Known intermittent issue: churn/rejoin can show transient `lobby full` / join retries (`error code 16`). Track with artifacts and summaries, and avoid conflating it with unrelated feature-lane pass/fail unless assertions require it.
 - Add and maintain compile-time gating for smoke hooks/call sites so smoke instrumentation compiles or executes only when a dedicated smoke-test flag is enabled.
 - Smoke validation requires a smoke-enabled build (`-DBARONY_SMOKE_TESTS=ON`); if expected `[SMOKE]` logs are missing, verify generated config/build mode and rebuild the smoke target before rerunning tests.
+- Keep generated `Config.hpp` build-local on Windows; writing it into `src/` cross-contaminates smoke/non-smoke build trees and can make OFF builds link smoke hooks by accident.
+- Windows smoke launches must run with `cwd` set to the per-instance `.barony` home; otherwise relative config/log paths collapse back into the repo root and lane signal becomes unusable.
 - Fresh per-instance smoke homes can stall in intro/title flow; ensure smoke homes are pre-seeded with profile data (`skipintro=true`, `mods=[]`, and compiled books cache) so autopilot reaches lobby/gameplay deterministically.
 - Local splitscreen is a legacy path and should stay hard-capped at 4 players; retain dedicated smoke coverage for `/splitscreen > 4` clamp behavior and over-cap leakage checks.
 - When parsing smoke status lines with similarly named keys (for example `connected` vs `over_cap_connected`), parse exact `key=value` tokens to avoid false negatives and lane hangs.
 - During style/contribution cleanup, treat `#ifdef BARONY_SMOKE_TESTS` guards around smoke-hook callsites as an acceptable and idiomatic exception.
+- Windows LAN gameplay lanes are timing-sensitive if `--auto-start-delay=0`; use the default `2` second delay (or higher) for reliable `GAMESTART`/`MAPGEN` assertions.
 - Preferred balancing loop for mapgen tuning: hook-owned in-process integration preflight (`levels=1,7,16,33`, fixed seed) -> single-runtime matrix confirmation -> runs=5 volatility gate -> full-lobby confirmation.
 
 ### Validation Summary (2026-02-12)
@@ -98,6 +101,23 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - EOS handshake coverage is still open and should be treated as a gating item for full backend sign-off.
 - Known intermittent issue remains: churn/rejoin can hit transient `lobby full` / `error code 16` retries before recovery; track with artifacts and do not conflate with unrelated lane failures.
 - Smoke compile/runtime gating is in place (`BARONY_SMOKE_TESTS`), and the preferred local lane path is local build binary + Steam `--datadir` assets.
+
+### Windows Validation Snapshot (2026-03-14)
+- VS2022 x64 Windows release build (`build-vs2022-x64`) now coexists cleanly with a smoke build (`build-vs2022-x64-smoke-nosteam`) after moving generated `Config.hpp` to the build directory.
+- Windows no-Steam smoke passes recorded at:
+  - `tests/smoke/artifacts/win-helo15-lobby-20260314-20260314-132233` (15p lobby / HELO / account-label coverage)
+  - `tests/smoke/artifacts/win-helo4-mapgen-delay2-20260314-20260314-133614` (4p gameplay + mapgen)
+  - `tests/smoke/artifacts/win-helo9-mapgen-delay2-20260314-20260314-133709` (9p gameplay + mapgen)
+  - `tests/smoke/artifacts/win-helo9-mapgen-v501compat-20260314-142002` (9p gameplay + mapgen after v5.0.1/v5.0.2 hash-compat patch)
+- Windows false-fail examples with `--auto-start-delay=0`:
+  - `tests/smoke/artifacts/win-helo2-mapgen-20260314-20260314-133105`
+  - `tests/smoke/artifacts/win-helo4-mapgen-20260314-20260314-132443`
+- Local Windows Steam install (`appmanifest_371970.acf`: `buildid=21759608`, `LastUpdated=2026-02-04 19:12:45 -08:00`) contains a fully self-consistent v5.0.1 map set: all 1922 `maps/*.lmp` files hash-match the upstream `v5.0.1` table, and exactly 19 files differ from the upstream `v5.0.2` table.
+- Keep `v5.0.2` hashes canonical in `src/files.cpp`, but accept the 19 changed `v5.0.1` hashes as compatibility values on Windows. Full audit artifact: `tests/smoke/artifacts/win-steam-map-hash-audit-20260314-142142` (`ACCEPTED_FILES=1922`, `COMPAT_HIT_FILES=19`).
+- Because the local Steam asset pack is still v5.0.1-era for those 19 maps, these Windows runs are good runtime-stability and compatibility signal, but they are not a clean v5.0.2 asset-certification run.
+- Windows overlay release artifacts were packaged from fresh full-feature build trees with `scripts/mod_release/package_windows_release.ps1`:
+  - `release-artifacts/barony-8p-windows-steam-20260314-195941.zip`
+  - `release-artifacts/barony-8p-windows-nodrm-20260314-195941.zip`
 
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).
@@ -116,6 +136,13 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - Keep operational hygiene between long runs: prune generated `models.cache`, and terminate stale `smoke_runner.py` lane processes plus `barony` before relaunch.
 
 ### Technical Commands and Config Reference
+- Windows overlay packaging after staging fresh release builds:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\mod_release\package_windows_release.ps1 `
+  -Label 20260314-195941 `
+  -SteamBuildDir build-vs2022-x64-release-steam `
+  -NoDrmBuildDir build-vs2022-x64-release-nodrm
+```
 - Smoke-enabled build (required for `[SMOKE]` hooks/logs):
 ```bash
 cmake -S . -B build-mac-smoke -G Ninja -DFMOD_ENABLED=OFF -DBARONY_SMOKE_TESTS=ON

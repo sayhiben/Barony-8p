@@ -1,0 +1,160 @@
+[h1][5.0.2] Barony Extended Multiplayer (1-15 Online/LAN)[/h1]
+
+This mod expands Barony multiplayer from the vanilla 1-4 range to support up to 15 players in Online and LAN lobbies.
+
+It includes lobby, join, save/load, and gameplay tuning support for larger groups while keeping normal 1-4 play intact.
+
+Huge thanks to sideduck for the install/release copy improvements and workshop-description cleanup.
+
+[hr][/hr]
+
+[h2]READ THIS FIRST - MANUAL INSTALL REQUIRED[/h2]
+
+[b][u]Subscribing to this Workshop item alone is NOT enough.[/u][/b]
+
+[b]Every player in the lobby (host + all clients) must manually install this mod and use the same build/version.[/b]
+
+If one or more players are missing files or are on a different build, you may see crashes, failed joins, "lobby full", save/join failures, or desync.
+
+This mod should be installed into a [b]copy[/b] of Barony, not your only/original install.
+
+[h2]WORKSHOP DOWNLOAD LOCATION[/h2]
+
+After subscribing, Steam downloads the files here:
+
+[quote]C:\Program Files (x86)\Steam\steamapps\workshop\content\371970\3436129755[/quote]
+
+[h2]INSTALLATION INSTRUCTIONS[/h2]
+
+[olist]
+[*]Close Barony and Steam.
+[*]Open your Barony install folder in Steam: Library -> Barony -> Manage -> Browse local files.
+[*]Copy the full Barony folder to a new folder. Example: Barony-15p.
+[*]Open the Workshop download folder shown above.
+[*]Copy the mod files from the Workshop folder into your copied Barony folder.
+[*]Replace files when prompted. This includes the root executable and runtime library files for your platform.
+[*]Launch the modded executable from the copied/modded folder.
+[*]Confirm that every player completed these same steps and is using the same Barony version and mod build.
+[/olist]
+
+This keeps your original Barony install untouched.
+
+[h2]WHAT IS NEW IN THIS UPDATE (v5.0.2 SUPPORT)[/h2]
+
+[list]
+[*]Synced Extended Multiplayer to upstream Barony v5.0.2.
+[*]Updated official map verification to the v5.0.2 hash set.
+[*]Maintained compatibility with official installs that still have the older v5.0.1-era versions of 19 changed official map files.
+[*]Fixed extended-lobby player colors so slots 9-15 cycle correctly instead of showing white.
+[*]Refreshed Windows release packaging/support for cleaner Steam and NoDRM overlay builds.
+[/list]
+
+[h2]UPSTREAM v5.0.2 AREAS COVERED BY THIS SYNC[/h2]
+
+[list]
+[*]Stat tracking fixes and multiplayer stat tracking support updates.
+[*]Editor/content support updates, including official map hash changes.
+[*]Audio/loading fixes, including loading music flow and holiday theme cleanup.
+[*]UI and quality-of-life work, including map/highlight and tooltip refresh fixes.
+[*]Gameplay, item, and spell bug fixes/tuning across multiple systems.
+[*]Multiplayer-adjacent fixes touching client/server item and stat behavior.
+[/list]
+
+[h2]COMPATIBILITY NOTES[/h2]
+
+[list]
+[*]This update targets upstream v5.0.2.
+[*]Official installs that still ship the older v5.0.1-era versions of 19 updated maps are still supported by this mod release.
+[*]That compatibility work prevents false official-map/hash failures and avoids incorrectly flagging those installs as modded while platform/store rollouts catch up.
+[*]This is compatibility support, not a claim that those installs already contain the exact upstream v5.0.2 versions of those 19 map files.
+[/list]
+
+[h2]WHAT THIS MOD DOES[/h2]
+
+[list]
+[*]Expands multiplayer lobby capacity to 15 players.
+[*]Adds host [b]# Players[/b] control in [b]Game Settings[/b].
+[*]Enables existing lobby paging controls so all player slots can be viewed and managed.
+[*]Improves join handling for larger lobbies and save-based joins.
+[*]Extends save/load support for expanded player slots.
+[*]Applies overflow-only gameplay tuning for 5+ players while preserving baseline 1-4 behavior.
+[*]Keeps local splitscreen capped at 4 players.
+[/list]
+
+[h2]HOW SCALING WORKS (5+ PLAYERS)[/h2]
+
+[list]
+[*]Scaling is overflow-only: vanilla 1-4 player balance is preserved.
+[*]For 5-15 players, map generation and resource tuning are adjusted for larger groups.
+[*]The mod scales map pressure and economy inputs to keep large-lobby runs playable without changing the baseline 1-4 experience.
+[/list]
+
+[h2]HOW TO USE (HOST)[/h2]
+
+[olist]
+[*]Launch the modded executable.
+[*]Select [b]Play Game[/b].
+[*]Select [b]Online[/b] or [b]LAN[/b].
+[*]Host a lobby.
+[*]On the host player card, open [b]Game Settings[/b].
+[*]Set [b]# Players[/b] to the lobby size you want (up to 15).
+[*]Use the lobby page arrows to view extra player slots.
+[*]Start once everyone is ready.
+[/olist]
+
+[h2]MULTIPLAYER PRE-FLIGHT CHECKLIST[/h2]
+
+[list]
+[*]All players manually installed the mod. Subscription alone is not enough.
+[*]All players are on matching Barony version and matching mod build/version.
+[*]The host launched the modded executable from the copied/modded folder.
+[*]The host set [b]# Players[/b] in [b]Game Settings[/b] to the intended lobby size.
+[*]After changing [b]# Players[/b], recreate the lobby.
+[/list]
+
+[h2]COMMON MISTAKES (AND FIXES)[/h2]
+
+[list]
+[*][b]"I subscribed, why doesn't 15p work?"[/b] Subscription only downloads the files. Manual file copy/install is still required.
+[*][b]Only the host installed the mod.[/b] All players must install the same mod build/version.
+[*][b]Launched the wrong executable.[/b] Start the modded executable from the copied/modded folder.
+[*][b]Mixed versions in lobby.[/b] Match both Barony version and mod build for everyone.
+[*][b]Changed [b]# Players[/b] but the lobby still acts wrong.[/b] Recreate the lobby after changing player count.
+[*][b]Can't find players above slot 4.[/b] Use the lobby page arrows on the far left and far right sides.
+[/list]
+
+[h2]TROUBLESHOOTING[/h2]
+
+[list]
+[*][b]Only seeing 1-4 players:[/b] You likely launched the wrong executable, or the files were not replaced in the copied folder.
+[*][b]Cannot find all players in a big lobby:[/b] Look for the page arrows on the far left and far right sides of the lobby screen.
+[*][b]Join rejected / lobby full / failed join:[/b] Make sure every player is on the same Barony version and same mod build. Recreate the lobby after changing [b]# Players[/b].
+[*][b]High-player instability:[/b] 5+ player sessions are supported, but edge-case desync or instability can still occur. Restart the lobby, reduce player count, and avoid rapid join/leave churn.
+[*][b]Save load/join issues:[/b] The host should load the save first, then players join. All players must use matching game and mod versions.
+[*][b]Steam update restored files:[/b] Re-copy the mod files into your copied mod folder. Do not overwrite your original install.
+[*][b]Please report issues:[/b] Even known rough edges need reports with repro steps.
+[/list]
+
+[h2]LOCAL PLAY WITH NUCLEUS COOP[/h2]
+
+If you need a local-play helper for this mod, you can look here:
+
+[url=https://nucleus-coop.github.io/]https://nucleus-coop.github.io/[/url]
+
+[h2]HOW TO REPORT BUGS[/h2]
+
+Post bug reports here:
+
+[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3436129755&searchtext=]Steam Workshop bug/feedback page[/url]
+
+Please include:
+
+[list]
+[*]Game version and mod version/date
+[*]Platform/store (Steam, Epic, or other)
+[*]Network mode (Online or LAN)
+[*]Player count at time of issue
+[*]Host or client role
+[*]Exact reproduction steps
+[*]Any logs or screenshots if available
+[/list]

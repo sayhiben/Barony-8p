@@ -17,6 +17,25 @@
 - `tests/smoke/pyproject.toml` and `tests/smoke/.python-version` were added for tool bootstrap consistency.
 - `lan-helo-chunk` internals are decomposed into focused helpers (`args`, `launch`, `runtime`, `post`, `summary`) to keep orchestration readable.
 
+## Windows Validation Snapshot (2026-03-14)
+- Framework sanity:
+  - `py -3 tests/smoke/smoke_runner.py framework-self-check` passed.
+  - `py -3 -m unittest discover -s tests/smoke/tests -p "test_*.py"` passed.
+- Windows no-Steam lane artifacts:
+  - 15p lobby / HELO / account-label coverage pass: `tests/smoke/artifacts/win-helo15-lobby-20260314-20260314-132233`
+  - 4p gameplay + mapgen pass: `tests/smoke/artifacts/win-helo4-mapgen-delay2-20260314-20260314-133614`
+  - 9p gameplay + mapgen pass: `tests/smoke/artifacts/win-helo9-mapgen-delay2-20260314-20260314-133709`
+  - 9p gameplay + mapgen pass after v5.0.1/v5.0.2 hash-compat patch: `tests/smoke/artifacts/win-helo9-mapgen-v501compat-20260314-142002`
+- Windows-specific runner caveats validated here:
+  - Launch each instance with `cwd=<home>/.barony`; otherwise relative config/log paths collapse into the repo root and multi-instance signal is corrupted.
+  - `--auto-start-delay=0` is too aggressive for Windows gameplay lanes and produces false `timeout-before-mapgen-samples` failures. Example failing artifacts:
+    - `tests/smoke/artifacts/win-helo2-mapgen-20260314-20260314-133105`
+    - `tests/smoke/artifacts/win-helo4-mapgen-20260314-20260314-132443`
+- Windows asset audit:
+  - `D:\SteamLibrary\steamapps\common\Barony` is internally consistent with the upstream `v5.0.1` map table, not the upstream `v5.0.2` table. Audit artifact: `tests/smoke/artifacts/win-steam-map-hash-audit-20260314-142142` (`TOTAL_FILES=1922`, `ACCEPTED_FILES=1922`, `COMPAT_HIT_FILES=19`).
+  - `src/files.cpp` now keeps `v5.0.2` hashes canonical and accepts the 19 changed `v5.0.1` hashes as compatibility values, which removes the hash-warning noise from current Windows smoke runs and avoids treating those official assets as modded.
+  - This restores clean runtime smoke signal on Windows, but it is still not equivalent to certifying a true `v5.0.2` asset pack.
+
 ## Background
 PR6 provides compile-gated smoke hooks in C++, but repeatable validation for networking/combat/splitscreen/save-reload needs runner tooling. The original shell-wrapper approach became high-duplication and hard to maintain. The current direction is a single Python CLI orchestrator with modular helpers.
 

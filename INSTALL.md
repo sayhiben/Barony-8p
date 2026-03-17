@@ -205,6 +205,31 @@ If `INSTALL` tries to write to `C:\Program Files\barony` and fails with permissi
 cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$PWD\build\install-root"
 ```
 
+### C. Package Windows mod releases (Steam and NoDRM overlays)
+
+After building the Windows release variants, package overlay zips with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\mod_release\package_windows_release.ps1 `
+  -Label v5.0.2-rc1 `
+  -SteamBuildDir build-vs2022-x64 `
+  -NoDrmBuildDir build-vs2022-x64-nodrm
+```
+
+The script accepts either a build directory or a direct `Release` directory for
+each package input. For each package it stages:
+
+- `barony.exe`
+- `editor.exe` if present
+- every `.dll` next to the executable
+- `steam_appid.txt` when present in the Steam build output
+- the mod release readme from `docs\mod_release\README.txt`
+- `SHA256SUMS.txt`
+
+Artifacts are written to `release-artifacts\barony-8p-windows-steam-<label>`
+and `release-artifacts\barony-8p-windows-nodrm-<label>`, plus matching `.zip`
+archives.
+
 
 # macOS (Homebrew, full-feature build)
 

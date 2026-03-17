@@ -1,0 +1,62 @@
+BARONY EXTENDED MULTIPLAYER
+mod-changelog.txt
+
+Update target: upstream Barony v5.0.1 -> v5.0.2
+
+This mod update keeps Extended Multiplayer aligned with upstream v5.0.2
+while preserving compatibility for official installs that still have the
+older v5.0.1-era map assets on disk.
+
+MOD UPDATE HIGHLIGHTS
+- Synced the mod's reported game version to upstream v5.0.2.
+- Updated official map verification to the v5.0.2 hash set.
+- Added compatibility handling for the 19 official map files that differ
+  between upstream v5.0.1 and v5.0.2, so current official installs are not
+  falsely treated as modded while platform/store rollouts catch up.
+- Fixed extended-lobby player colors so slots 9-15 cycle the palette instead
+  of falling back to white.
+- Refreshed Windows release packaging/support so Steam and NoDRM overlay
+  builds can be staged and shipped cleanly.
+
+UPSTREAM v5.0.2 SYNC SUMMARY
+Upstream v5.0.2 includes a broad set of fixes and tuning changes. The local
+git log and upstream diff show updates in these areas:
+
+- Stat tracking:
+  multiplayer stat tracking updates and a lich-related stat tracking fix.
+- Editor / content support:
+  editor fix, official map hash updates, and related content-side support.
+- Audio / loading:
+  loading music flow cleanup, ensemble sound loading warning, and holiday
+  theme memory leak cleanup.
+- UI / quality-of-life:
+  minimap station highlighting, quickcast hotbar option, reduced mouse motion
+  event option, and tooltip refresh/fix work.
+- Gameplay / item / spell fixes:
+  multiple balance and bug-fix changes across traps, cursed item handling,
+  instruments, achievements, follower limits, throw text, and spell/item
+  tooltip behavior.
+- Network / multiplayer-adjacent fixes:
+  upstream fixes touching multiplayer credit/stat handling and client/server
+  item behavior.
+
+MOD-SPECIFIC COMPATIBILITY NOTES
+- Official Windows/Steam installs that still ship the v5.0.1 versions of the
+  19 changed maps remain supported by this mod update.
+- This avoids false official-map/hash failures and prevents those installs
+  from being incorrectly flagged as modded just because the asset rollout has
+  not fully matched upstream v5.0.2 yet.
+- This is compatibility support, not a claim that those installs already have
+  the exact upstream v5.0.2 versions of those 19 map files.
+
+MOD-SPECIFIC BUG FIXES IN THIS UPDATE
+- High-slot player colors now display correctly in extended lobbies.
+- Windows release staging was cleaned up so Steam and NoDRM builds can be
+  packaged with the required runtime DLLs and release README content.
+
+NOTES
+- Splitscreen remains capped at 4 players.
+- Extended multiplayer support remains focused on online/LAN overflow slots.
+- This summary is based on the upstream git log/diff for v5.0.1..v5.0.2 and
+  the local maintenance changes made to keep the mod compatible with that
+  upstream update.

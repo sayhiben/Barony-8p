@@ -18,7 +18,8 @@ Flip `BARONY_SUPER_MULTIPLAYER` default ON and publish concise operator/reviewer
 ## Scope
 ### In Scope
 - One-line default flip in `CMakeLists.txt` (`BARONY_SUPER_MULTIPLAYER`)
-- Concise release-facing notes in `README.md` and/or `INSTALL.md` (if needed)
+- Concise release-facing notes in `README.md`, `INSTALL.md`, and/or
+  `mod-changelog.txt` (if needed)
 
 ### Out of Scope
 - Any gameplay/network/mapgen logic changes
@@ -44,6 +45,18 @@ Flip `BARONY_SUPER_MULTIPLAYER` default ON and publish concise operator/reviewer
   - Baseline 4p lane.
   - 15p lane.
 - Manual startup sanity with default settings.
+- Operator packaging sanity:
+  - Steam and NoDRM Windows overlay zips contain the built executables, adjacent runtime DLLs, the mod README, and `SHA256SUMS.txt`.
+
+## Notes (2026-03-14)
+- Windows overlay packaging helper now exists at `scripts/mod_release/package_windows_release.ps1`.
+- Latest local artifacts:
+  - `release-artifacts/barony-8p-windows-steam-20260314-195941.zip`
+  - `release-artifacts/barony-8p-windows-nodrm-20260314-195941.zip`
+
+## Notes (2026-03-15)
+- Added `mod-changelog.txt` to summarize the upstream `v5.0.1 -> v5.0.2`
+  sync plus the mod-side compatibility/bug-fix work that accompanies it.
 
 ## Acceptance Criteria
 - [ ] `BARONY_SUPER_MULTIPLAYER` default is ON.

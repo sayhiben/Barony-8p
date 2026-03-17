@@ -14,6 +14,15 @@
 - Keep that runner/tooling work out of PR6; PR6 remains source/CMake compile-gating only.
 - Current branch structure now uses `tests/smoke/smoke_framework/*` modules; this does not change PR6 scope boundaries.
 
+## Windows Validation Snapshot (2026-03-14)
+- VS2022 x64 `BARONY_SMOKE_TESTS=OFF`: `cmake --build build-vs2022-x64 --config Release --parallel --target barony editor` passed.
+- VS2022 x64 `BARONY_SMOKE_TESTS=ON`: `cmake --build build-vs2022-x64-smoke-nosteam --config Release --parallel --target barony` passed.
+- Notable fix validated here: generating `Config.hpp` into `src/` cross-contaminated smoke/non-smoke build trees and caused OFF-build unresolved `SmokeTestHooks::*` symbols after an ON configure. Keep `Config.hpp` build-local and include it from `${PROJECT_BINARY_DIR}`.
+- Related runtime validation artifact roots:
+  - `tests/smoke/artifacts/win-helo15-lobby-20260314-20260314-132233`
+  - `tests/smoke/artifacts/win-helo4-mapgen-delay2-20260314-20260314-133614`
+  - `tests/smoke/artifacts/win-helo9-mapgen-delay2-20260314-20260314-133709`
+
 ## Extraction Guardrails (Current Branch)
 - Include only:
   - `CMakeLists.txt`, `src/CMakeLists.txt`, `src/Config.hpp.in`

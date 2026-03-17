@@ -35,43 +35,44 @@
 
 #include <assert.h>
 
+namespace
+{
+constexpr Uint32 kNormalPlayerColors[] = {
+	uint32ColorPlayer1, uint32ColorPlayer2, uint32ColorPlayer3, uint32ColorPlayer4,
+	uint32ColorPlayer5, uint32ColorPlayer6, uint32ColorPlayer7, uint32ColorPlayer8
+};
+
+constexpr Uint32 kColorblindPlayerColors[] = {
+	uint32ColorPlayer1_colorblind, uint32ColorPlayer2_colorblind,
+	uint32ColorPlayer3_colorblind, uint32ColorPlayer4_colorblind,
+	uint32ColorPlayer5_colorblind, uint32ColorPlayer6_colorblind,
+	uint32ColorPlayer7_colorblind, uint32ColorPlayer8_colorblind
+};
+
+template <std::size_t kCount>
+Uint32 playerColorFromPalette(const Uint32 (&palette)[kCount], const int index)
+{
+	return palette[static_cast<std::size_t>(index) % kCount];
+}
+}
+
 const Uint32 playerColor(int index, bool colorblind, bool ally)
 {
-    Uint32 result;
-    if (colorblind) {
-        switch (index) {
-        default: result = uint32ColorPlayerX_colorblind; break;
-        case 0: result = uint32ColorPlayer1_colorblind; break;
-        case 1: result = uint32ColorPlayer2_colorblind; break;
-        case 2: result = uint32ColorPlayer3_colorblind; break;
-        case 3: result = uint32ColorPlayer4_colorblind; break;
-        case 4: result = uint32ColorPlayer5_colorblind; break;
-        case 5: result = uint32ColorPlayer6_colorblind; break;
-        case 6: result = uint32ColorPlayer7_colorblind; break;
-        case 7: result = uint32ColorPlayer8_colorblind; break;
-        }
-    }
-    else {
-        switch (index) {
-        default: result = uint32ColorPlayerX; break;
-        case 0: result = uint32ColorPlayer1; break;
-        case 1: result = uint32ColorPlayer2; break;
-        case 2: result = uint32ColorPlayer3; break;
-        case 3: result = uint32ColorPlayer4; break;
-        case 4: result = uint32ColorPlayer5; break;
-        case 5: result = uint32ColorPlayer6; break;
-        case 6: result = uint32ColorPlayer7; break;
-        case 7: result = uint32ColorPlayer8; break;
-        }
-    }
-    if (ally) {
-        uint8_t r, g, b, a;
-        getColor(result, &r, &g, &b, &a);
-        r /= 2; g /= 2; b /= 2;
-        return makeColor(r, g, b, a);
-    } else {
-        return result;
-    }
+	Uint32 result = colorblind ? uint32ColorPlayerX_colorblind : uint32ColorPlayerX;
+	if ( index >= 0 && index < MAXPLAYERS )
+	{
+		result = colorblind ?
+			playerColorFromPalette(kColorblindPlayerColors, index) :
+			playerColorFromPalette(kNormalPlayerColors, index);
+	}
+	if ( ally ) {
+		uint8_t r, g, b, a;
+		getColor(result, &r, &g, &b, &a);
+		r /= 2; g /= 2; b /= 2;
+		return makeColor(r, g, b, a);
+	} else {
+		return result;
+	}
 }
 
 static const char* bigfont_outline = "fonts/pixelmix.ttf#16#2";

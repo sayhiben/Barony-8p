@@ -10,7 +10,7 @@
 -------------------------------------------------------------------------------*/
 
 #pragma once
-#include "Config.hpp"
+#include <Config.hpp>
 
 #include <stdlib.h>
 //#ifdef WINDOWS
