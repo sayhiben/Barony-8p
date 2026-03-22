@@ -1,10 +1,10 @@
 # 8p-mod Changelog (v5.0.1 -> v5.0.2)
 
-Date: 2026-02-26
+Date: 2026-03-22
 Branch: `codex/8p-mod-5.0.2`
 
 ## Summary
-This prep cycle rebased the mod to upstream `v5.0.2`, then hardened compatibility and stability for 1-15 player behavior. The guiding policy remained:
+This release branch rebased the mod to upstream `v5.0.2`, then hardened compatibility and stability for 1-15 player behavior through a February prep pass plus a March level-load sync follow-up. The guiding policy remained:
 - preserve strict 1-4 parity with upstream behavior
 - tune only overflow paths (5-15)
 - resolve carry-over multiplayer regressions discovered during post-reconcile validation
@@ -105,6 +105,29 @@ Changes:
 Why:
 - User-reported issues (host receiving other players' ducks / repeated duck fills, remote enemy HP bars not visible) traced to carry-over assumptions that were fragile under `MAXPLAYERS=15` and mixed-asset runtime setups.
 
+### 7) Level-Load Sync Hardening and Geometry Recovery
+Files:
+- `src/files.cpp`
+- `src/files.hpp`
+- `src/game.cpp`
+- `src/game.hpp`
+- `src/maps.cpp`
+- `src/net.cpp`
+- `src/ui/MainMenu.cpp`
+- `src/smoke/SmokeHooksMainMenu.cpp`
+- `src/smoke/SmokeHooksNet.cpp`
+- `src/smoke/SmokeTestHooks.hpp`
+
+Changes:
+- Host now freezes authoritative connected-player inputs for each level load/reload and appends the final slot mask plus tile/entity checksums to `LVLC` / `LVLR`.
+- Clients now consume the host-authoritative mask during map scaling/spawn filtering, then verify their post-load geometry and initial entity scene against host checksums.
+- Added shared FNV-1a checksum helpers for map geometry and initial entity placement, with `tileAttributes` included so non-tile drift is caught alongside wall/layout drift.
+- Added a reliable chunked map-geometry snapshot recovery path: checksum-mismatched clients request a host snapshot, apply it locally, rebuild pathing/chunks, and verify the recovered checksum.
+- Hardened smoke auto-start so host-side auto-launch waits for both connected-slot parity and lobby-entry/JACK acknowledgement parity before zero-delay starts.
+
+Why:
+- Field reports and targeted smoke repro showed that HELO/join hardening alone was not enough; clients could still diverge on level load if they re-derived mapgen inputs from local slot state or started before all remotes had fully entered the lobby.
+
 ## Validation Used During Prep
 
 Build:
@@ -154,6 +177,33 @@ cmake --build build-mac-smoke -j8 --target barony
   - Steam: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807`
   - EOS: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141`
 
+Level-load sync follow-up validation (2026-03-21):
+- Targeted LAN authoritative-input repro PASS:
+  - `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316`
+  - Host and client both generated `The Mines` with `players=2`; client received host `mask=0x0003` and `tile_checksum=2380154547` before load and logged no mismatch.
+- Forced-mismatch snapshot recovery PASS:
+  - `tests/smoke/artifacts/map-desync-snapshot-recovery-20260321-213455`
+  - Client intentionally diverged (`local_checksum=1494320743`), requested host recovery, received `19621` bytes in `11` chunks, and finished at host checksum `2380154547`.
+- Post-hardening entity-checksum/rebuild regression PASS:
+  - `cmake --build build-mac-smoke -j8 --target barony`
+  - `tests/smoke/artifacts/map-desync-entity-checksum-20260321-215354`
+- Broader regression lanes PASS:
+  - `tests/smoke/artifacts/level-sync-baseline-2p-20260321-221439`
+  - `tests/smoke/artifacts/level-sync-4p-mapgen-delay3-20260321-221847`
+  - `tests/smoke/artifacts/helo-soak-level-sync-20260321-221956`
+  - `tests/smoke/artifacts/helo-adversarial-level-sync-20260321-222152`
+  - `tests/smoke/artifacts/join-leave-churn-standard-20260321-222825`
+  - `tests/smoke/artifacts/save-reload-compat-level-sync-20260321-223036`
+- Zero-delay lobby-start follow-up PASS after smoke gating hardening:
+  - `tests/smoke/artifacts/level-sync-4p-mapgen-delay0-smokegate-20260321-230540`
+- Same-level procedural reload follow-up PASS:
+  - `tests/smoke/artifacts/reload-procedural-level-sync-2p-20260321-230638`
+- Exploratory lanes not counted toward confidence:
+  - `tests/smoke/artifacts/join-leave-churn-level-sync-20260321-222429`
+  - `tests/smoke/artifacts/remote-combat-level-sync-20260321-223515`
+
 ## Notes
 - This changelog documents prep work from the mod `v5.0.1` baseline to upstream-aligned `v5.0.2` compatibility.
+- March follow-up work added authoritative level-load mapgen inputs and host-driven geometry recovery for checksum mismatches discovered after the initial February prep pass.
+- Recovery remains geometry-scoped: it guarantees parity for tiles, flags, and `tileAttributes`, but it is not a full host-authoritative bootstrap for static entity/content drift.
 - Final promotion should still include one full-lobby confirmation pass on the chosen tuning snapshot before tagging a release artifact.
