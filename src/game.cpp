@@ -28,6 +28,7 @@
 #include "monster.hpp"
 #include "scores.hpp"
 #include "menu.hpp"
+#include "level_load_sync.hpp"
 #include "net.hpp"
 #ifdef STEAMWORKS
 #include <steam/steam_api.h>
@@ -242,11 +243,6 @@ TileEntityListHandler TileEntityList;
 int game = 1;
 Uint32 uniqueGameKey = 0;
 Uint32 uniqueLobbyKey = 0;
-Uint16 authoritativeMapgenPlayerMask = 0;
-bool authoritativeMapTileChecksumValid = false;
-Uint32 authoritativeMapTileChecksum = 0;
-bool authoritativeMapEntityChecksumValid = false;
-Uint32 authoritativeMapEntityChecksum = 0;
 DebugStatsClass DebugStats;
 Uint32 networkTickrate = 0;
 bool gameloopFreezeEntities = false;
@@ -268,80 +264,6 @@ Uint32 messagesEnabled = 0xffffffff & ~MESSAGE_DEBUG; // all but debug enabled
 #else
 Uint32 messagesEnabled = 0xffffffff; // all enabled
 #endif
-
-static Uint16 buildConnectedPlayerMaskForLevelLoad()
-{
-	Uint16 mask = 0;
-	for ( int i = 0; i < MAXPLAYERS; ++i )
-	{
-		if ( !client_disconnected[i] )
-		{
-			mask |= static_cast<Uint16>(1u << i);
-		}
-	}
-	return mask;
-}
-
-static int countConnectedPlayersInMask(const Uint16 mask)
-{
-	int connectedPlayers = 0;
-	for ( int i = 0; i < MAXPLAYERS; ++i )
-	{
-		if ( mask & static_cast<Uint16>(1u << i) )
-		{
-			++connectedPlayers;
-		}
-	}
-	return connectedPlayers;
-}
-
-static void prepareLevelChangePacket(const char* packetType,
-	const bool secretLevelValue,
-	const Uint32 mapSeedValue,
-	const Uint32 entityUidValue,
-	const int currentLevelValue,
-	const std::string& customMapName,
-	const Uint16 mapgenPlayerMaskValue,
-	const bool hasTileChecksum,
-	const Uint32 tileChecksumValue,
-	const bool hasEntityChecksum,
-	const Uint32 entityChecksumValue)
-{
-	strcpy((char*)net_packet->data, packetType);
-	net_packet->data[4] = secretLevelValue ? 1 : 0;
-	SDLNet_Write32(mapSeedValue, &net_packet->data[5]);
-	SDLNet_Write32(entityUidValue, &net_packet->data[9]);
-	net_packet->data[13] = currentLevelValue;
-
-	int offset = LEVEL_CHANGE_PACKET_BASE_LEN;
-	if ( !customMapName.empty() )
-	{
-		strcpy((char*)(&net_packet->data[14]), customMapName.c_str());
-		net_packet->data[14 + customMapName.length()] = 0;
-		offset += static_cast<int>(customMapName.length()) + 1;
-	}
-	else
-	{
-		net_packet->data[14] = 0;
-	}
-
-	if ( hasTileChecksum )
-	{
-		net_packet->data[offset] = hasEntityChecksum
-			? LEVEL_CHANGE_PACKET_EXTRA_VERSION_2
-			: LEVEL_CHANGE_PACKET_EXTRA_VERSION_1;
-		SDLNet_Write16(mapgenPlayerMaskValue, &net_packet->data[offset + 1]);
-		SDLNet_Write32(tileChecksumValue, &net_packet->data[offset + 3]);
-		offset += LEVEL_CHANGE_PACKET_EXTRA_SIZE_V1;
-		if ( hasEntityChecksum )
-		{
-			SDLNet_Write32(entityChecksumValue, &net_packet->data[offset]);
-			offset += sizeof(Uint32);
-		}
-	}
-
-	net_packet->len = offset;
-}
 
 real_t getFPSScale(real_t baseFPS)
 {
@@ -2231,11 +2153,7 @@ void gameLogic(void)
 					}
 
 					const std::string pendingLevelChangeCustomMap = loadCustomNextMap;
-					authoritativeMapgenPlayerMask = buildConnectedPlayerMaskForLevelLoad();
-					authoritativeMapTileChecksumValid = false;
-					authoritativeMapTileChecksum = 0;
-					authoritativeMapEntityChecksumValid = false;
-					authoritativeMapEntityChecksum = 0;
+					LevelLoadSync::beginHostLevelLoad();
 					loadingSameLevelAsCurrent = false;
 					darkmap = false;
 
@@ -2298,16 +2216,7 @@ void gameLogic(void)
                     createChunks();
 		            loading = false;
 	                int result = loading_task.get();
-					authoritativeMapTileChecksum = calculateMapTileChecksum(map);
-					authoritativeMapTileChecksumValid = true;
-					authoritativeMapEntityChecksum = calculateMapEntityChecksum(map);
-					authoritativeMapEntityChecksumValid = true;
-					printlog("[NET]: level load authoritative mapgen inputs level=%d secret=%d seed=%u players=%d mask=0x%04X tile_checksum=%u entity_checksum=%u",
-						currentlevel, secretlevel ? 1 : 0, mapseed,
-						countConnectedPlayersInMask(authoritativeMapgenPlayerMask),
-						static_cast<unsigned>(authoritativeMapgenPlayerMask),
-						authoritativeMapTileChecksum,
-						authoritativeMapEntityChecksum);
+					LevelLoadSync::finalizeHostLevelLoad(map);
 
 					if ( multiplayer == SERVER && net_packet && net_packet->data )
 					{
@@ -2317,18 +2226,14 @@ void gameLogic(void)
 							{
 								continue;
 							}
-							prepareLevelChangePacket(
+							LevelLoadSync::prepareLevelChangePacket(
+								net_packet,
 								loadingTheSameFloorAsCurrent ? "LVLR" : "LVLC",
 								secretlevel,
 								mapseed,
 								lastEntityUIDs,
 								currentlevel,
-								pendingLevelChangeCustomMap,
-								authoritativeMapgenPlayerMask,
-								authoritativeMapTileChecksumValid,
-								authoritativeMapTileChecksum,
-								authoritativeMapEntityChecksumValid,
-								authoritativeMapEntityChecksum);
+								pendingLevelChangeCustomMap);
 							net_packet->address.host = net_clients[c - 1].host;
 							net_packet->address.port = net_clients[c - 1].port;
 							sendPacketSafe(net_sock, -1, net_packet, c - 1);
@@ -2828,18 +2733,14 @@ void gameLogic(void)
 							continue;
 						}
 						if (net_packet && net_packet->data) {
-							prepareLevelChangePacket(
+							LevelLoadSync::prepareLevelChangePacket(
+								net_packet,
 								"LVLC",
 								secretlevel,
 								mapseed,
 								lastEntityUIDs,
 								currentlevel,
-								"",
-								authoritativeMapgenPlayerMask,
-								authoritativeMapTileChecksumValid,
-								authoritativeMapTileChecksum,
-								authoritativeMapEntityChecksumValid,
-								authoritativeMapEntityChecksum);
+								"");
 							net_packet->address.host = net_clients[c - 1].host;
 							net_packet->address.port = net_clients[c - 1].port;
 							sendPacketSafe(net_sock, -1, net_packet, c - 1);

@@ -3152,106 +3152,7 @@ int loadMap(const char* filename2, map_t* destmap, list_t* entlist, list_t* crea
 #endif
 #endif
 
-#ifndef EDITOR
-		map.setMapHDRSettings();
-#endif
-
-		// create new lightmap
-        for (int c = 0; c < MAXPLAYERS + 1; ++c) {
-            auto& lightmap = lightmaps[c];
-            auto& lightmapSmoothed = lightmapsSmoothed[c];
-            lightmap.resize(destmap->width * destmap->height);
-            lightmapSmoothed.resize((destmap->width + 2) * (destmap->height + 2));
-            if ( strncmp(map.name, "Hell", 4) )
-            {
-                memset(lightmap.data(), 0, sizeof(vec4_t) * map.width * map.height);
-                memset(lightmapSmoothed.data(), 0, sizeof(vec4_t) * (map.width + 2) * (map.height + 2));
-
-#ifndef EDITOR
-				if ( !strncmp(map.filename, "fortress", 8) )
-				{
-					Vector4 ambienceColor = {128.f, 128.f, 152.f, 1.f};
-					ambienceColor.x *= ambienceColor.w;
-					ambienceColor.y *= ambienceColor.w;
-					ambienceColor.z *= ambienceColor.w;
-					for ( int c = 0; c < destmap->width * destmap->height; c++ )
-					{
-						lightmap[c].x = ambienceColor.x;
-						lightmap[c].y = ambienceColor.y;
-						lightmap[c].z = ambienceColor.z;
-					}
-					for ( int c = 0; c < (destmap->width + 2) * (destmap->height + 2); c++ )
-					{
-						lightmapSmoothed[c].x = ambienceColor.x;
-						lightmapSmoothed[c].y = ambienceColor.y;
-						lightmapSmoothed[c].z = ambienceColor.z;
-					}
-				}
-				if ( (svFlags & SV_FLAG_CHEATS) && 
-					(cvar_map_ambience->x > 0.01
-						|| cvar_map_ambience->y > 0.01
-						|| cvar_map_ambience->z > 0.01) )
-				{
-					auto ambienceColor = *cvar_map_ambience;
-					ambienceColor.x *= ambienceColor.w;
-					ambienceColor.y *= ambienceColor.w;
-					ambienceColor.z *= ambienceColor.w;
-					for ( int c = 0; c < destmap->width * destmap->height; c++ )
-					{
-						lightmap[c].x = ambienceColor.x;
-						lightmap[c].y = ambienceColor.y;
-						lightmap[c].z = ambienceColor.z;
-					}
-					for ( int c = 0; c < (destmap->width + 2) * (destmap->height + 2); c++ )
-					{
-						lightmapSmoothed[c].x = ambienceColor.x;
-						lightmapSmoothed[c].y = ambienceColor.y;
-						lightmapSmoothed[c].z = ambienceColor.z;
-					}
-				}
-#endif
-            }
-            else
-            {
-                for (int c = 0; c < destmap->width * destmap->height; c++ )
-                {
-                    lightmap[c].x = hellAmbience;
-                    lightmap[c].y = hellAmbience;
-                    lightmap[c].z = hellAmbience;
-#ifndef EDITOR
-                    if ( svFlags & SV_FLAG_CHEATS )
-                    {
-                        lightmap[c].x = *cvar_hell_ambience;
-                        lightmap[c].y = *cvar_hell_ambience;
-                        lightmap[c].z = *cvar_hell_ambience;
-                    }
-#endif
-                }
-                for (int c = 0; c < (destmap->width + 2) * (destmap->height + 2); c++ )
-                {
-                    lightmapSmoothed[c].x = hellAmbience;
-                    lightmapSmoothed[c].y = hellAmbience;
-                    lightmapSmoothed[c].z = hellAmbience;
-#ifndef EDITOR
-                    if ( svFlags & SV_FLAG_CHEATS )
-                    {
-                        lightmapSmoothed[c].x = *cvar_hell_ambience;
-                        lightmapSmoothed[c].y = *cvar_hell_ambience;
-                        lightmapSmoothed[c].z = *cvar_hell_ambience;
-                    }
-#endif
-                }
-            }
-        }
-
-		// reset minimap
-		for ( x = 0; x < MINIMAP_MAX_DIMENSION; x++ )
-		{
-			for ( y = 0; y < MINIMAP_MAX_DIMENSION; y++ )
-			{
-				minimap[y][x] = 0;
-			}
-		}
+		resetMapVisualCachesForGeometry(*destmap);
 
 		// reset cameras
 		for (int c = 0; c < MAXPLAYERS; ++c) {
@@ -3447,17 +3348,6 @@ MapGeometrySnapshot captureMapGeometrySnapshot(const map_t& source)
 
 namespace
 {
-	bool allocateMapVismapBuffer(bool*& dest, const size_t tileCount)
-	{
-		dest = static_cast<bool*>(malloc(sizeof(bool) * tileCount));
-		if ( !dest )
-		{
-			return false;
-		}
-		memset(dest, 0, sizeof(bool) * tileCount);
-		return true;
-	}
-
 	void resetMapMinimapData()
 	{
 		for ( int x = 0; x < MINIMAP_MAX_DIMENSION; ++x )
@@ -3469,7 +3359,7 @@ namespace
 		}
 	}
 
-	void resetMapLightmapsForSnapshot(const map_t& destmap)
+	void resetMapLightmapsForGeometry(const map_t& destmap)
 	{
 		const size_t lightmapTileCount = static_cast<size_t>(destmap.width) * destmap.height;
 		const size_t lightmapSmoothedCount = static_cast<size_t>(destmap.width + 2) * (destmap.height + 2);
@@ -3565,14 +3455,22 @@ namespace
 	}
 }
 
-bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapshot)
+void resetMapVisualCachesForGeometry(map_t& destmap)
+{
+#ifndef EDITOR
+	destmap.setMapHDRSettings();
+#endif
+	resetMapLightmapsForGeometry(destmap);
+	resetMapMinimapData();
+}
+
+bool applyMapGeometrySnapshotData(map_t& destmap, const MapGeometrySnapshot& snapshot)
 {
 	if ( snapshot.width == 0 || snapshot.height == 0 )
 	{
 		return false;
 	}
-	const size_t vismapTileCount = static_cast<size_t>(snapshot.width) * snapshot.height;
-	const size_t tileCount = vismapTileCount * MAPLAYERS;
+	const size_t tileCount = static_cast<size_t>(snapshot.width) * snapshot.height * MAPLAYERS;
 	if ( snapshot.tiles.size() != tileCount )
 	{
 		return false;
@@ -3580,124 +3478,19 @@ bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapsho
 
 	const bool dimensionsChanged = !destmap.tiles
 		|| destmap.width != snapshot.width
-		|| destmap.height != snapshot.height
-#ifdef EDITOR
-		|| !camera.vismap
-#endif
-		|| !menucam.vismap
-		|| !shoparea;
-
-	bool missingPlayerVismap = false;
-	for ( int i = 0; i < MAXPLAYERS; ++i )
-	{
-		if ( !cameras[i].vismap )
-		{
-			missingPlayerVismap = true;
-			break;
-		}
-	}
-
-	if ( dimensionsChanged || missingPlayerVismap )
+		|| destmap.height != snapshot.height;
+	if ( dimensionsChanged )
 	{
 		Sint32* newTiles = static_cast<Sint32*>(malloc(sizeof(Sint32) * tileCount));
 		if ( !newTiles )
 		{
 			return false;
 		}
-
-#ifdef EDITOR
-		bool* newEditorVismap = nullptr;
-		if ( !allocateMapVismapBuffer(newEditorVismap, vismapTileCount) )
-		{
-			free(newTiles);
-			return false;
-		}
-#endif
-		bool* newMenuVismap = nullptr;
-		if ( !allocateMapVismapBuffer(newMenuVismap, vismapTileCount) )
-		{
-#ifdef EDITOR
-			free(newEditorVismap);
-#endif
-			free(newTiles);
-			return false;
-		}
-		bool* newPlayerVismaps[MAXPLAYERS] = { nullptr };
-		for ( int i = 0; i < MAXPLAYERS; ++i )
-		{
-			if ( !allocateMapVismapBuffer(newPlayerVismaps[i], vismapTileCount) )
-			{
-				for ( int j = 0; j < i; ++j )
-				{
-					free(newPlayerVismaps[j]);
-				}
-				free(newMenuVismap);
-#ifdef EDITOR
-				free(newEditorVismap);
-#endif
-				free(newTiles);
-				return false;
-			}
-		}
-		bool* newShoparea = static_cast<bool*>(malloc(sizeof(bool) * vismapTileCount));
-		if ( !newShoparea )
-		{
-			for ( int i = 0; i < MAXPLAYERS; ++i )
-			{
-				free(newPlayerVismaps[i]);
-			}
-			free(newMenuVismap);
-#ifdef EDITOR
-			free(newEditorVismap);
-#endif
-			free(newTiles);
-			return false;
-		}
-		memset(newShoparea, 0, sizeof(bool) * vismapTileCount);
-
 		if ( destmap.tiles )
 		{
 			free(destmap.tiles);
 		}
 		destmap.tiles = newTiles;
-
-#ifdef EDITOR
-		if ( camera.vismap )
-		{
-			free(camera.vismap);
-		}
-		camera.vismap = newEditorVismap;
-#endif
-		if ( menucam.vismap )
-		{
-			free(menucam.vismap);
-		}
-		menucam.vismap = newMenuVismap;
-		for ( int i = 0; i < MAXPLAYERS; ++i )
-		{
-			if ( cameras[i].vismap )
-			{
-				free(cameras[i].vismap);
-			}
-			cameras[i].vismap = newPlayerVismaps[i];
-		}
-		if ( shoparea )
-		{
-			free(shoparea);
-		}
-		shoparea = newShoparea;
-	}
-	else
-	{
-#ifdef EDITOR
-		memset(camera.vismap, 0, sizeof(bool) * vismapTileCount);
-#endif
-		memset(menucam.vismap, 0, sizeof(bool) * vismapTileCount);
-		for ( int i = 0; i < MAXPLAYERS; ++i )
-		{
-			memset(cameras[i].vismap, 0, sizeof(bool) * vismapTileCount);
-		}
-		memset(shoparea, 0, sizeof(bool) * vismapTileCount);
 	}
 
 	memcpy(destmap.name, snapshot.name, sizeof(destmap.name));
@@ -3710,12 +3503,6 @@ bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapsho
 	memcpy(destmap.tiles, snapshot.tiles.data(), sizeof(Sint32) * tileCount);
 	destmap.tileAttributes = snapshot.tileAttributes;
 	destmap.liquidSfxPlayedTiles.clear();
-
-#ifndef EDITOR
-	destmap.setMapHDRSettings();
-#endif
-	resetMapLightmapsForSnapshot(destmap);
-	resetMapMinimapData();
 	return true;
 }
 

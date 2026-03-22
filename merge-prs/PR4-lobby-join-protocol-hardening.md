@@ -52,6 +52,11 @@ Large-lobby join/start reliability is a core blocker for 1-15 support. Existing 
   - churn plus gameplay auto-start drifted into midgame-rejoin retries instead of standard lobby churn: `tests/smoke/artifacts/join-leave-churn-level-sync-20260321-222429`
   - remote-combat follow-up did not produce clean gameplay signal in this local harness: `tests/smoke/artifacts/remote-combat-level-sync-20260321-223515`
 - Remaining caveat for extraction planning: the recovery is geometry-scoped. It fixes tile/flag/tile-attribute drift after load, but it does not make the full level bootstrap host-authoritative for static entity/content drift.
+- Cleanup follow-up (2026-03-22):
+  - extracted the level-load authority/recovery path behind `src/level_load_sync.cpp/.hpp`, reducing the upstream surface in `src/game.cpp`, `src/net.cpp`, and `src/maps.cpp`
+  - split snapshot application so `src/files.cpp` now handles geometry data copy plus HDR/lightmap/minimap reset, while `src/level_load_sync.cpp` owns vismap/shoparea replacement during recovery
+  - verification for this cleanup pass was build-only: `cmake --build build-mac -j8 --target barony editor`
+  - no new smoke artifact was generated for the refactor-only follow-up; remaining caveat is unchanged, with ambience-driven lightmap reset still anchored in `src/files.cpp`
 
 ## What and Why
 Harden join protocol and lobby flow so 4p and 15p sessions remain stable, while preserving compatibility/fallback behavior.

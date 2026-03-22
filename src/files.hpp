@@ -321,7 +321,8 @@ struct MapGeometrySnapshot
 	std::map<int, Uint32> tileAttributes;
 };
 MapGeometrySnapshot captureMapGeometrySnapshot(const map_t& source);
-bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapshot);
+bool applyMapGeometrySnapshotData(map_t& destmap, const MapGeometrySnapshot& snapshot);
+void resetMapVisualCachesForGeometry(map_t& destmap);
 std::list<std::string> physfsGetFileNamesInDirectory(const char* dir);
 std::string physfsFormatMapName(char const * const levelfilename);
 bool physfsModelIndexUpdate(int &start, int &end);

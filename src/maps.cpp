@@ -27,6 +27,7 @@
 #include "scores.hpp"
 #include "mod_tools.hpp"
 #include "menu.hpp"
+#include "level_load_sync.hpp"
 #include "ui/MainMenu.hpp"
 #ifdef BARONY_SMOKE_TESTS
 #include "smoke/SmokeTestHooks.hpp"
@@ -42,15 +43,7 @@ static constexpr int kLegacySplitscreenPlayerSlots = 4;
 
 static bool isPlayerConnectedForMapgen(const int player)
 {
-	if ( player < 0 || player >= MAXPLAYERS )
-	{
-		return false;
-	}
-	if ( authoritativeMapgenPlayerMask != 0 )
-	{
-		return (authoritativeMapgenPlayerMask & static_cast<Uint16>(1u << player)) != 0;
-	}
-	return !client_disconnected[player];
+	return LevelLoadSync::isPlayerConnectedForMapgen(player);
 }
 
 static int getConnectedPlayerCountForMapScaling()
@@ -66,7 +59,7 @@ static int getConnectedPlayerCountForMapScaling()
 #ifdef BARONY_SMOKE_TESTS
 	const int smokeOverridePlayers = SmokeTestHooks::Mapgen::connectedPlayersOverride();
 	if ( smokeOverridePlayers > 0
-		&& (multiplayer != CLIENT || authoritativeMapgenPlayerMask == 0) )
+		&& (multiplayer != CLIENT || !LevelLoadSync::hasAuthoritativePlayerMask()) )
 	{
 		return smokeOverridePlayers;
 	}

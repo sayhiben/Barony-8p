@@ -13,6 +13,7 @@ list(APPEND GAME_SOURCES
 	"${CMAKE_CURRENT_SOURCE_DIR}/items.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/paths.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/charclass.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/level_load_sync.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/net.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/game.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/stat.cpp"

@@ -182,6 +182,11 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - churn-with-gameplay auto-start drifted into midgame-rejoin retries instead of standard lobby churn: `tests/smoke/artifacts/join-leave-churn-level-sync-20260321-222429`
   - remote-combat lane aborted before gameplay because host launch never completed: `tests/smoke/artifacts/remote-combat-level-sync-20260321-223515`
 - Current caveat: the fallback is geometry-scoped. It guarantees tile/flag/tile-attribute parity after load, but it is not a full host-authoritative level bootstrap for static entity/content drift.
+- Cleanup follow-up (2026-03-22):
+  - extracted level-load authority and recovery ownership into `src/level_load_sync.cpp/.hpp`, so `game.cpp`, `net.cpp`, and `maps.cpp` no longer carry the packet-layout and snapshot-recovery state directly
+  - split map snapshot application so `files.cpp` now owns only geometry-data copy plus HDR/lightmap/minimap cache reset, while `level_load_sync.cpp` owns vismap/shoparea buffer replacement during recovery
+  - build verification passed: `cmake --build build-mac -j8 --target barony editor`
+  - no new smoke artifact for this cleanup-only pass; residual caveat remains that HDR/lightmap reset still lives in `files.cpp` because the ambience console variables are anchored there today
 
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).

@@ -39,13 +39,6 @@ class Entity;
 #define ENTITY_PACKET_LENGTH 47
 // Must fit large lobby handshake payloads (e.g., savegame HELO with MAXPLAYERS=15).
 #define NET_PACKET_SIZE 2048
-static constexpr int LEVEL_CHANGE_PACKET_BASE_LEN = 15;
-static constexpr Uint8 LEVEL_CHANGE_PACKET_EXTRA_VERSION_1 = 1;
-static constexpr Uint8 LEVEL_CHANGE_PACKET_EXTRA_VERSION_2 = 2;
-static constexpr Uint8 LEVEL_CHANGE_PACKET_EXTRA_VERSION = LEVEL_CHANGE_PACKET_EXTRA_VERSION_2;
-static constexpr int LEVEL_CHANGE_PACKET_EXTRA_SIZE_V1 = 1 + sizeof(Uint16) + sizeof(Uint32);
-static constexpr int LEVEL_CHANGE_PACKET_EXTRA_SIZE_V2 = LEVEL_CHANGE_PACKET_EXTRA_SIZE_V1 + sizeof(Uint32);
-static constexpr int LEVEL_CHANGE_PACKET_EXTRA_SIZE = LEVEL_CHANGE_PACKET_EXTRA_SIZE_V2;
 
 // impulses (bound keystrokes, mousestrokes, and joystick/game controller strokes) //TODO: Player-by-player basis.
 extern Uint32 impulses[NUMIMPULSES];
@@ -117,11 +110,6 @@ extern int skipLevelsOnLoad;
 extern bool loadingSameLevelAsCurrent;
 extern std::string loadCustomNextMap;
 extern Uint32 forceMapSeed;
-extern Uint16 authoritativeMapgenPlayerMask;
-extern bool authoritativeMapTileChecksumValid;
-extern Uint32 authoritativeMapTileChecksum;
-extern bool authoritativeMapEntityChecksumValid;
-extern Uint32 authoritativeMapEntityChecksum;
 extern int currentlevel;
 extern bool secretlevel;
 extern bool darkmap;
