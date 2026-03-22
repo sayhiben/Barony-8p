@@ -40,19 +40,33 @@ int numMimics = 0;
 TreasureRoomGenerator treasure_room_generator;
 static constexpr int kLegacySplitscreenPlayerSlots = 4;
 
+static bool isPlayerConnectedForMapgen(const int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return false;
+	}
+	if ( authoritativeMapgenPlayerMask != 0 )
+	{
+		return (authoritativeMapgenPlayerMask & static_cast<Uint16>(1u << player)) != 0;
+	}
+	return !client_disconnected[player];
+}
+
 static int getConnectedPlayerCountForMapScaling()
 {
 	int connectedPlayers = 0;
 	for ( int i = 0; i < MAXPLAYERS; ++i )
 	{
-		if ( !client_disconnected[i] )
+		if ( isPlayerConnectedForMapgen(i) )
 		{
 			++connectedPlayers;
 		}
 	}
 #ifdef BARONY_SMOKE_TESTS
 	const int smokeOverridePlayers = SmokeTestHooks::Mapgen::connectedPlayersOverride();
-	if ( smokeOverridePlayers > 0 )
+	if ( smokeOverridePlayers > 0
+		&& (multiplayer != CLIENT || authoritativeMapgenPlayerMask == 0) )
 	{
 		return smokeOverridePlayers;
 	}
@@ -7772,7 +7786,7 @@ void assignActions(map_t* map)
 			{
 				if ( numplayers >= 0 && numplayers < MAXPLAYERS )
 				{
-					if ( client_disconnected[numplayers] && !intro )
+					if ( !isPlayerConnectedForMapgen(numplayers) && !intro )
 					{
 						// don't spawn missing players
 						++numplayers;

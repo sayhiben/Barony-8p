@@ -12,6 +12,15 @@
 ## Background
 Large-lobby join/start reliability is a core blocker for 1-15 support. Existing join paths are fragile under high slot counts and payload pressure, especially around HELO capability signaling and chunk handling.
 
+## Field Report Follow-Up (2026-03-21)
+- A real-world lobby report showed one client rendering different wall geometry while host collision still followed the shared map. Code inspection and smoke repro isolated a second sync risk beyond HELO/join: level load previously sent only seed/level metadata, while clients re-derived mapgen inputs from local slot state.
+- Current branch follow-up implements authoritative level-load mapgen inputs (`connected-player` mask + final tile checksum) in `LVLC` / `LVLR`, with client-side checksum verification after load.
+- Targeted LAN smoke repro with a client-only smoke override of `5` connected players now stays synchronized:
+  - artifact: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316`
+  - summary: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316/summary.env`
+  - host/client both generated `The Mines` with `players=2`; client received `mask=0x0003 checksum=2380154547` before load and logged no mismatch
+- Remaining caveat for extraction planning: mismatch handling is warning-only today. Automatic recovery still needs a follow-up host-authoritative tile snapshot path if we want hard guarantees after checksum failure.
+
 ## What and Why
 Harden join protocol and lobby flow so 4p and 15p sessions remain stable, while preserving compatibility/fallback behavior.
 

@@ -134,6 +134,19 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - `release-artifacts/barony-8p-windows-steam-20260314-195941.zip`
   - `release-artifacts/barony-8p-windows-nodrm-20260314-195941.zip`
 
+### Validation Addendum (2026-03-21)
+- Implemented authoritative level-load mapgen metadata for network clients:
+  - host now freezes a connected-player slot mask for the level load, computes a final tile checksum after generation, and appends both to `LVLC` / `LVLR`
+  - clients now consume that authoritative mask during map scaling/spawn filtering and compare their post-load tile checksum against the host value
+- Added a shared tile checksum helper over width/height/skybox/flags/tile layers and a client warning path when host/local tile checksums disagree.
+- Smoke-only connected-player overrides now remain available for host/single-runtime mapgen lanes, but network clients no longer override the host's authoritative level-load mask.
+- Targeted 2-instance LAN repro passed with a client-only smoke override of `5` connected players:
+  - host authoritative inputs: `players=2 mask=0x0003 checksum=2380154547`
+  - client received the same authoritative inputs before loading and generated the same `The Mines` floor (`players=2`, identical room/economy summary)
+  - artifact: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316`
+  - summary: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316/summary.env`
+- Current caveat: checksum mismatch handling is warning-only (`printlog` + player-facing rejoin message). There is not yet a host-tile snapshot fallback for automatic recovery.
+
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).
 - Use sweep confidence policy consistently: `runs=3` for directional iteration, `runs=5` for volatility gate/promotion decisions.

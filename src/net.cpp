@@ -84,6 +84,19 @@ static bool hasUsablePlayerSlot(const int player, const bool requireStats = true
 	return true;
 }
 
+static int countConnectedPlayersInMask(const Uint16 mask)
+{
+	int connectedPlayers = 0;
+	for ( int i = 0; i < MAXPLAYERS; ++i )
+	{
+		if ( mask & static_cast<Uint16>(1u << i) )
+		{
+			++connectedPlayers;
+		}
+	}
+	return connectedPlayers;
+}
+
 namespace {
 constexpr Uint8 kJoinCapabilityHeloChunkV1 = 0x01;
 constexpr int kJoinVersionFieldOffset = 48;
@@ -2544,6 +2557,26 @@ static void changeLevel() {
 		strcpy(buf, (char*)&net_packet->data[14]);
 		loadCustomNextMap = buf;
 	}
+	authoritativeMapgenPlayerMask = 0;
+	authoritativeMapTileChecksumValid = false;
+	authoritativeMapTileChecksum = 0;
+	int extraOffset = LEVEL_CHANGE_PACKET_BASE_LEN;
+	if ( net_packet->data[14] != 0 )
+	{
+		extraOffset += static_cast<int>(strlen((char*)&net_packet->data[14])) + 1;
+	}
+	if ( net_packet->len >= extraOffset + LEVEL_CHANGE_PACKET_EXTRA_SIZE
+		&& net_packet->data[extraOffset] == LEVEL_CHANGE_PACKET_EXTRA_VERSION )
+	{
+		authoritativeMapgenPlayerMask = SDLNet_Read16(&net_packet->data[extraOffset + 1]);
+		authoritativeMapTileChecksum = SDLNet_Read32(&net_packet->data[extraOffset + 3]);
+		authoritativeMapTileChecksumValid = true;
+		printlog("[NET]: received authoritative mapgen inputs level=%d secret=%d seed=%u players=%d mask=0x%04X checksum=%u",
+			net_packet->data[13], net_packet->data[4], SDLNet_Read32(&net_packet->data[5]),
+			countConnectedPlayersInMask(authoritativeMapgenPlayerMask),
+			static_cast<unsigned>(authoritativeMapgenPlayerMask),
+			authoritativeMapTileChecksum);
+	}
 
 	if ( MainMenu::isCutsceneActive() )
 	{
@@ -2753,6 +2786,18 @@ static void changeLevel() {
     destroyLoadingScreen();
 	loading = false;
     int result = loading_task.get();
+	if ( authoritativeMapTileChecksumValid )
+	{
+		const Uint32 localTileChecksum = calculateMapTileChecksum(map);
+		if ( localTileChecksum != authoritativeMapTileChecksum )
+		{
+			printlog("[NET]: map sync mismatch detected level=%d secret=%d seed=%u host_checksum=%u local_checksum=%u mask=0x%04X map=\"%s\"",
+				currentlevel, secretlevel ? 1 : 0, mapseed,
+				authoritativeMapTileChecksum, localTileChecksum,
+				static_cast<unsigned>(authoritativeMapgenPlayerMask), map.name);
+			messagePlayer(clientnum, MESSAGE_MISC, "Map sync mismatch detected on level load. Rejoining is recommended.");
+		}
+	}
     
     clearChunks();
     createChunks();

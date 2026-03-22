@@ -3302,6 +3302,37 @@ int loadMap(const char* filename2, map_t* destmap, list_t* entlist, list_t* crea
 	return numentities;
 }
 
+Uint32 calculateMapTileChecksum(const map_t& source)
+{
+	// Standard 32-bit FNV-1a offset basis / prime constants.
+	constexpr Uint32 kFnv1aOffsetBasis32 = 2166136261u;
+	constexpr Uint32 kFnv1aPrime32 = 16777619u;
+	Uint32 checksum = kFnv1aOffsetBasis32;
+	auto mixBytes = [&checksum](const void* data, const size_t size) {
+		if ( !data )
+		{
+			return;
+		}
+		const Uint8* bytes = static_cast<const Uint8*>(data);
+		for ( size_t i = 0; i < size; ++i )
+		{
+			checksum ^= bytes[i];
+			checksum *= kFnv1aPrime32;
+		}
+	};
+
+	mixBytes(&source.width, sizeof(source.width));
+	mixBytes(&source.height, sizeof(source.height));
+	mixBytes(&source.skybox, sizeof(source.skybox));
+	mixBytes(source.flags, sizeof(source.flags));
+	if ( source.tiles )
+	{
+		const size_t tilesSize = static_cast<size_t>(source.width) * source.height * MAPLAYERS * sizeof(Sint32);
+		mixBytes(source.tiles, tilesSize);
+	}
+	return checksum;
+}
+
 /*-------------------------------------------------------------------------------
 
 	saveMap

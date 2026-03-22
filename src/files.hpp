@@ -305,6 +305,7 @@ void openLogFile();
 std::vector<std::string> getLinesFromDataFile(std::string filename);
 int loadMainMenuMap(bool blessedAdditionMaps, bool forceVictoryMap, int forcemap = -1);
 int physfsLoadMapFile(int levelToLoad, Uint32 seed, bool useRandSeed, int *checkMapHash = nullptr);
+Uint32 calculateMapTileChecksum(const map_t& source);
 std::list<std::string> physfsGetFileNamesInDirectory(const char* dir);
 std::string physfsFormatMapName(char const * const levelfilename);
 bool physfsModelIndexUpdate(int &start, int &end);
