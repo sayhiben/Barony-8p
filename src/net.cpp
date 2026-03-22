@@ -106,6 +106,28 @@ constexpr int kHeloChunkPayloadMax = 900;
 constexpr int kHeloSinglePacketMax = 1100;
 constexpr int kHeloChunkMaxCount = 32;
 static Uint16 g_heloTransferId[MAXPLAYERS] = { 0 };
+constexpr Uint8 kMapSnapshotPacketVersion = 1;
+constexpr int kMapSnapshotChunkHeaderSize = 28;
+constexpr int kMapSnapshotChunkPayloadMax = 1800;
+static Uint16 g_mapSnapshotTransferId[MAXPLAYERS] = { 0 };
+
+struct PendingMapSnapshotReceive
+{
+	bool active = false;
+	Uint8 level = 0;
+	bool secret = false;
+	Uint32 seed = 0;
+	Uint16 transferId = 0;
+	Uint16 chunkCount = 0;
+	Uint16 receivedChunkCount = 0;
+	Uint32 totalBytes = 0;
+	Uint32 checksum = 0;
+	std::vector<Uint8> bytes;
+	std::vector<Uint8> receivedChunks;
+};
+
+static PendingMapSnapshotReceive g_pendingMapSnapshotReceive;
+static bool g_mapSnapshotRecoveryRequested = false;
 
 #ifdef BARONY_SMOKE_TESTS
 using HeloChunkSendPlanEntry = SmokeTestHooks::MainMenu::HeloChunkSendPlanEntry;
@@ -176,6 +198,303 @@ Uint16 nextHeloTransferIdForPlayer(const int player)
 		++g_heloTransferId[player];
 	}
 	return g_heloTransferId[player];
+}
+
+Uint16 nextMapSnapshotTransferIdForPlayer(const int player)
+{
+	if ( player < 0 || player >= MAXPLAYERS )
+	{
+		return 1;
+	}
+	++g_mapSnapshotTransferId[player];
+	if ( g_mapSnapshotTransferId[player] == 0 )
+	{
+		++g_mapSnapshotTransferId[player];
+	}
+	return g_mapSnapshotTransferId[player];
+}
+
+void resetPendingMapSnapshotReceive()
+{
+	g_pendingMapSnapshotReceive = PendingMapSnapshotReceive{};
+}
+
+void appendSnapshotByte(std::vector<Uint8>& buffer, const Uint8 value)
+{
+	buffer.push_back(value);
+}
+
+void appendSnapshotUint32(std::vector<Uint8>& buffer, const Uint32 value)
+{
+	const size_t offset = buffer.size();
+	buffer.resize(offset + sizeof(Uint32));
+	SDLNet_Write32(value, buffer.data() + offset);
+}
+
+void appendSnapshotSint32(std::vector<Uint8>& buffer, const Sint32 value)
+{
+	appendSnapshotUint32(buffer, static_cast<Uint32>(value));
+}
+
+void appendSnapshotBytes(std::vector<Uint8>& buffer, const void* data, const size_t size)
+{
+	const auto* bytes = static_cast<const Uint8*>(data);
+	buffer.insert(buffer.end(), bytes, bytes + size);
+}
+
+bool readSnapshotUint8(const std::vector<Uint8>& buffer, size_t& offset, Uint8& value)
+{
+	if ( offset + sizeof(Uint8) > buffer.size() )
+	{
+		return false;
+	}
+	value = buffer[offset];
+	offset += sizeof(Uint8);
+	return true;
+}
+
+bool readSnapshotUint32(const std::vector<Uint8>& buffer, size_t& offset, Uint32& value)
+{
+	if ( offset + sizeof(Uint32) > buffer.size() )
+	{
+		return false;
+	}
+	value = SDLNet_Read32(buffer.data() + offset);
+	offset += sizeof(Uint32);
+	return true;
+}
+
+bool readSnapshotSint32(const std::vector<Uint8>& buffer, size_t& offset, Sint32& value)
+{
+	Uint32 raw = 0;
+	if ( !readSnapshotUint32(buffer, offset, raw) )
+	{
+		return false;
+	}
+	value = static_cast<Sint32>(raw);
+	return true;
+}
+
+bool readSnapshotBytes(const std::vector<Uint8>& buffer, size_t& offset, void* dest, const size_t size)
+{
+	if ( offset + size > buffer.size() )
+	{
+		return false;
+	}
+	memcpy(dest, buffer.data() + offset, size);
+	offset += size;
+	return true;
+}
+
+std::vector<Uint8> serializeMapGeometrySnapshot(const MapGeometrySnapshot& snapshot)
+{
+	std::vector<Uint8> bytes;
+	const size_t tileBytes = snapshot.tiles.size() * sizeof(Sint32);
+	const size_t attrBytes = snapshot.tileAttributes.size() * (sizeof(Uint32) + sizeof(Uint32));
+	bytes.reserve(1 + sizeof(snapshot.name) + sizeof(snapshot.author) + sizeof(snapshot.filename)
+		+ sizeof(Uint32) * 4 + sizeof(snapshot.flags) + tileBytes + attrBytes);
+
+	appendSnapshotByte(bytes, kMapSnapshotPacketVersion);
+	appendSnapshotBytes(bytes, snapshot.name, sizeof(snapshot.name));
+	appendSnapshotBytes(bytes, snapshot.author, sizeof(snapshot.author));
+	appendSnapshotBytes(bytes, snapshot.filename, sizeof(snapshot.filename));
+	appendSnapshotUint32(bytes, snapshot.width);
+	appendSnapshotUint32(bytes, snapshot.height);
+	appendSnapshotUint32(bytes, snapshot.skybox);
+	for ( const auto flag : snapshot.flags )
+	{
+		appendSnapshotSint32(bytes, flag);
+	}
+	appendSnapshotUint32(bytes, static_cast<Uint32>(snapshot.tiles.size()));
+	for ( const auto tile : snapshot.tiles )
+	{
+		appendSnapshotSint32(bytes, tile);
+	}
+	appendSnapshotUint32(bytes, static_cast<Uint32>(snapshot.tileAttributes.size()));
+	for ( const auto& entry : snapshot.tileAttributes )
+	{
+		appendSnapshotSint32(bytes, static_cast<Sint32>(entry.first));
+		appendSnapshotUint32(bytes, entry.second);
+	}
+	return bytes;
+}
+
+bool deserializeMapGeometrySnapshot(const std::vector<Uint8>& bytes, MapGeometrySnapshot& snapshot)
+{
+	size_t offset = 0;
+	Uint8 version = 0;
+	if ( !readSnapshotUint8(bytes, offset, version) || version != kMapSnapshotPacketVersion )
+	{
+		return false;
+	}
+	if ( !readSnapshotBytes(bytes, offset, snapshot.name, sizeof(snapshot.name))
+		|| !readSnapshotBytes(bytes, offset, snapshot.author, sizeof(snapshot.author))
+		|| !readSnapshotBytes(bytes, offset, snapshot.filename, sizeof(snapshot.filename))
+		|| !readSnapshotUint32(bytes, offset, snapshot.width)
+		|| !readSnapshotUint32(bytes, offset, snapshot.height)
+		|| !readSnapshotUint32(bytes, offset, snapshot.skybox) )
+	{
+		return false;
+	}
+	for ( auto& flag : snapshot.flags )
+	{
+		if ( !readSnapshotSint32(bytes, offset, flag) )
+		{
+			return false;
+		}
+	}
+
+	Uint32 tileCount = 0;
+	if ( !readSnapshotUint32(bytes, offset, tileCount) )
+	{
+		return false;
+	}
+	const size_t expectedTileCount = static_cast<size_t>(snapshot.width) * snapshot.height * MAPLAYERS;
+	if ( tileCount != expectedTileCount )
+	{
+		return false;
+	}
+	snapshot.tiles.resize(tileCount);
+	for ( Uint32 i = 0; i < tileCount; ++i )
+	{
+		if ( !readSnapshotSint32(bytes, offset, snapshot.tiles[i]) )
+		{
+			return false;
+		}
+	}
+
+	Uint32 attributeCount = 0;
+	if ( !readSnapshotUint32(bytes, offset, attributeCount) )
+	{
+		return false;
+	}
+	snapshot.tileAttributes.clear();
+	for ( Uint32 i = 0; i < attributeCount; ++i )
+	{
+		Sint32 key = 0;
+		Uint32 value = 0;
+		if ( !readSnapshotSint32(bytes, offset, key)
+			|| !readSnapshotUint32(bytes, offset, value) )
+		{
+			return false;
+		}
+		snapshot.tileAttributes[static_cast<int>(key)] = value;
+	}
+
+	return offset == bytes.size();
+}
+
+bool requestAuthoritativeMapSnapshotFromHost(const Uint32 localChecksum)
+{
+	if ( multiplayer != CLIENT || !net_packet || !net_packet->data )
+	{
+		return false;
+	}
+	strcpy((char*)net_packet->data, "MSRQ");
+	net_packet->data[4] = clientnum;
+	net_packet->data[5] = kMapSnapshotPacketVersion;
+	net_packet->data[6] = static_cast<Uint8>(currentlevel);
+	net_packet->data[7] = secretlevel ? 1 : 0;
+	SDLNet_Write32(mapseed, &net_packet->data[8]);
+	SDLNet_Write32(authoritativeMapTileChecksum, &net_packet->data[12]);
+	net_packet->address.host = net_server.host;
+	net_packet->address.port = net_server.port;
+	net_packet->len = 16;
+	const int sent = sendPacketSafe(net_sock, -1, net_packet, 0);
+	printlog("[NET]: requested authoritative map snapshot level=%d secret=%d seed=%u host_checksum=%u local_checksum=%u sent=%d",
+		currentlevel, secretlevel ? 1 : 0, mapseed,
+		authoritativeMapTileChecksum, localChecksum, sent);
+	return sent != 0;
+}
+
+void sendAuthoritativeMapSnapshotToClient(const int player)
+{
+	if ( multiplayer != SERVER || player <= 0 || player >= MAXPLAYERS || !net_packet || !net_packet->data )
+	{
+		return;
+	}
+	const MapGeometrySnapshot snapshot = captureMapGeometrySnapshot(map);
+	const std::vector<Uint8> bytes = serializeMapGeometrySnapshot(snapshot);
+	const Uint16 chunkCount = std::max<Uint16>(1, static_cast<Uint16>((bytes.size() + kMapSnapshotChunkPayloadMax - 1) / kMapSnapshotChunkPayloadMax));
+	const Uint16 transferId = nextMapSnapshotTransferIdForPlayer(player);
+	printlog("[NET]: sending authoritative map snapshot player=%d level=%d secret=%d seed=%u transfer=%u bytes=%zu chunks=%u checksum=%u",
+		player, currentlevel, secretlevel ? 1 : 0, mapseed,
+		transferId, bytes.size(), static_cast<unsigned>(chunkCount), authoritativeMapTileChecksum);
+
+	for ( Uint16 chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex )
+	{
+		const size_t offset = static_cast<size_t>(chunkIndex) * kMapSnapshotChunkPayloadMax;
+		const size_t remaining = offset < bytes.size() ? (bytes.size() - offset) : 0;
+		const Uint16 payloadBytes = static_cast<Uint16>(std::min<size_t>(remaining, kMapSnapshotChunkPayloadMax));
+
+		strcpy((char*)net_packet->data, "MSNP");
+		net_packet->data[4] = static_cast<Uint8>(player);
+		net_packet->data[5] = kMapSnapshotPacketVersion;
+		net_packet->data[6] = static_cast<Uint8>(currentlevel);
+		net_packet->data[7] = secretlevel ? 1 : 0;
+		SDLNet_Write32(mapseed, &net_packet->data[8]);
+		SDLNet_Write16(transferId, &net_packet->data[12]);
+		SDLNet_Write16(chunkIndex, &net_packet->data[14]);
+		SDLNet_Write16(chunkCount, &net_packet->data[16]);
+		SDLNet_Write32(static_cast<Uint32>(bytes.size()), &net_packet->data[18]);
+		SDLNet_Write32(authoritativeMapTileChecksum, &net_packet->data[22]);
+		SDLNet_Write16(payloadBytes, &net_packet->data[26]);
+		if ( payloadBytes > 0 )
+		{
+			memcpy(net_packet->data + kMapSnapshotChunkHeaderSize, bytes.data() + offset, payloadBytes);
+		}
+		net_packet->address.host = net_clients[player - 1].host;
+		net_packet->address.port = net_clients[player - 1].port;
+		net_packet->len = kMapSnapshotChunkHeaderSize + payloadBytes;
+		sendPacketSafe(net_sock, -1, net_packet, player - 1);
+	}
+}
+
+bool applyPendingMapSnapshotReceive()
+{
+	MapGeometrySnapshot snapshot;
+	if ( !deserializeMapGeometrySnapshot(g_pendingMapSnapshotReceive.bytes, snapshot) )
+	{
+		printlog("[NET]: failed to decode authoritative map snapshot transfer=%u bytes=%u",
+			g_pendingMapSnapshotReceive.transferId, g_pendingMapSnapshotReceive.totalBytes);
+		messagePlayer(clientnum, MESSAGE_MISC, "Failed to decode host map snapshot. Rejoining is recommended.");
+		g_mapSnapshotRecoveryRequested = false;
+		resetPendingMapSnapshotReceive();
+		return false;
+	}
+	if ( !applyMapGeometrySnapshot(map, snapshot) )
+	{
+		printlog("[NET]: failed to apply authoritative map snapshot transfer=%u level=%d secret=%d seed=%u",
+			g_pendingMapSnapshotReceive.transferId, currentlevel, secretlevel ? 1 : 0, mapseed);
+		messagePlayer(clientnum, MESSAGE_MISC, "Failed to apply host map snapshot. Rejoining is recommended.");
+		g_mapSnapshotRecoveryRequested = false;
+		resetPendingMapSnapshotReceive();
+		return false;
+	}
+	generatePathMaps();
+	clearChunks();
+	createChunks();
+	const Uint32 recoveredChecksum = calculateMapTileChecksum(map);
+	const bool checksumMatches = !authoritativeMapTileChecksumValid
+		|| recoveredChecksum == g_pendingMapSnapshotReceive.checksum;
+	if ( checksumMatches )
+	{
+		authoritativeMapTileChecksum = g_pendingMapSnapshotReceive.checksum;
+		authoritativeMapTileChecksumValid = true;
+		printlog("[NET]: authoritative map snapshot applied transfer=%u level=%d secret=%d seed=%u checksum=%u",
+			g_pendingMapSnapshotReceive.transferId, currentlevel, secretlevel ? 1 : 0, mapseed, recoveredChecksum);
+		messagePlayer(clientnum, MESSAGE_MISC, "Recovered map geometry from host.");
+	}
+	else
+	{
+		printlog("[NET]: authoritative map snapshot checksum mismatch transfer=%u level=%d secret=%d seed=%u host_checksum=%u recovered_checksum=%u",
+			g_pendingMapSnapshotReceive.transferId, currentlevel, secretlevel ? 1 : 0, mapseed,
+			g_pendingMapSnapshotReceive.checksum, recoveredChecksum);
+		messagePlayer(clientnum, MESSAGE_MISC, "Host map snapshot recovery failed. Rejoining is recommended.");
+	}
+	g_mapSnapshotRecoveryRequested = false;
+	resetPendingMapSnapshotReceive();
+	return checksumMatches;
 }
 
 void disposeNetTempItem(Item*& item)
@@ -2560,22 +2879,35 @@ static void changeLevel() {
 	authoritativeMapgenPlayerMask = 0;
 	authoritativeMapTileChecksumValid = false;
 	authoritativeMapTileChecksum = 0;
+	authoritativeMapEntityChecksumValid = false;
+	authoritativeMapEntityChecksum = 0;
+	g_mapSnapshotRecoveryRequested = false;
+	resetPendingMapSnapshotReceive();
 	int extraOffset = LEVEL_CHANGE_PACKET_BASE_LEN;
 	if ( net_packet->data[14] != 0 )
 	{
 		extraOffset += static_cast<int>(strlen((char*)&net_packet->data[14])) + 1;
 	}
-	if ( net_packet->len >= extraOffset + LEVEL_CHANGE_PACKET_EXTRA_SIZE
-		&& net_packet->data[extraOffset] == LEVEL_CHANGE_PACKET_EXTRA_VERSION )
+	if ( net_packet->len >= extraOffset + LEVEL_CHANGE_PACKET_EXTRA_SIZE_V1
+		&& net_packet->data[extraOffset] >= LEVEL_CHANGE_PACKET_EXTRA_VERSION_1 )
 	{
+		const Uint8 extraVersion = net_packet->data[extraOffset];
 		authoritativeMapgenPlayerMask = SDLNet_Read16(&net_packet->data[extraOffset + 1]);
 		authoritativeMapTileChecksum = SDLNet_Read32(&net_packet->data[extraOffset + 3]);
 		authoritativeMapTileChecksumValid = true;
-		printlog("[NET]: received authoritative mapgen inputs level=%d secret=%d seed=%u players=%d mask=0x%04X checksum=%u",
+		if ( extraVersion >= LEVEL_CHANGE_PACKET_EXTRA_VERSION_2
+			&& net_packet->len >= extraOffset + LEVEL_CHANGE_PACKET_EXTRA_SIZE_V2 )
+		{
+			authoritativeMapEntityChecksum = SDLNet_Read32(&net_packet->data[extraOffset + LEVEL_CHANGE_PACKET_EXTRA_SIZE_V1]);
+			authoritativeMapEntityChecksumValid = true;
+		}
+		printlog("[NET]: received authoritative mapgen inputs level=%d secret=%d seed=%u players=%d mask=0x%04X tile_checksum=%u entity_checksum=%u version=%u",
 			net_packet->data[13], net_packet->data[4], SDLNet_Read32(&net_packet->data[5]),
 			countConnectedPlayersInMask(authoritativeMapgenPlayerMask),
 			static_cast<unsigned>(authoritativeMapgenPlayerMask),
-			authoritativeMapTileChecksum);
+			authoritativeMapTileChecksum,
+			authoritativeMapEntityChecksumValid ? authoritativeMapEntityChecksum : 0,
+			static_cast<unsigned>(extraVersion));
 	}
 
 	if ( MainMenu::isCutsceneActive() )
@@ -2738,7 +3070,14 @@ static void changeLevel() {
 	loading = true;
     createLevelLoadScreen(5);
     std::atomic_bool loading_done {false};
+	struct ClientLevelLoadResult
+	{
+		int result = 0;
+		bool entityChecksumValid = false;
+		Uint32 entityChecksum = 0;
+	};
     auto loading_task = std::async(std::launch::async, [&loading_done](){
+		ClientLevelLoadResult loadResult;
 	    gameplayCustomManager.readFromFile();
 		if ( gameplayCustomManager.inUse() )
 		{
@@ -2748,7 +3087,7 @@ static void changeLevel() {
         updateLoadingScreen(10);
 
 	    int checkMapHash = -1;
-	    int result = physfsLoadMapFile(currentlevel, mapseed, false, &checkMapHash);
+	    loadResult.result = physfsLoadMapFile(currentlevel, mapseed, false, &checkMapHash);
 	    if (!verifyMapHash(map.filename, checkMapHash))
 	    {
 		    conductGameChallenges[CONDUCT_MODDED] = 1;
@@ -2762,6 +3101,8 @@ static void changeLevel() {
 
 	    generatePathMaps();
         updateLoadingScreen(80);
+		loadResult.entityChecksum = calculateMapEntityChecksum(map);
+		loadResult.entityChecksumValid = true;
 
         node_t *node, *nextnode;
 	    for ( node = map.entities->first; node != nullptr; node = nextnode )
@@ -2776,7 +3117,7 @@ static void changeLevel() {
         updateLoadingScreen(99);
 
 	    loading_done = true;
-	    return result;
+	    return loadResult;
 	});
     while (!loading_done)
     {
@@ -2785,7 +3126,24 @@ static void changeLevel() {
     }
     destroyLoadingScreen();
 	loading = false;
-    int result = loading_task.get();
+    const ClientLevelLoadResult loadResult = loading_task.get();
+    const int result = loadResult.result;
+#ifdef BARONY_SMOKE_TESTS
+	if ( multiplayer == CLIENT )
+	{
+		SmokeTestHooks::Net::forceLevelLoadMapMismatch(map);
+	}
+#endif
+	if ( authoritativeMapEntityChecksumValid && loadResult.entityChecksumValid )
+	{
+		if ( loadResult.entityChecksum != authoritativeMapEntityChecksum )
+		{
+			printlog("[NET]: entity sync mismatch detected level=%d secret=%d seed=%u host_entity_checksum=%u local_entity_checksum=%u mask=0x%04X map=\"%s\"",
+				currentlevel, secretlevel ? 1 : 0, mapseed,
+				authoritativeMapEntityChecksum, loadResult.entityChecksum,
+				static_cast<unsigned>(authoritativeMapgenPlayerMask), map.name);
+		}
+	}
 	if ( authoritativeMapTileChecksumValid )
 	{
 		const Uint32 localTileChecksum = calculateMapTileChecksum(map);
@@ -2795,7 +3153,12 @@ static void changeLevel() {
 				currentlevel, secretlevel ? 1 : 0, mapseed,
 				authoritativeMapTileChecksum, localTileChecksum,
 				static_cast<unsigned>(authoritativeMapgenPlayerMask), map.name);
-			messagePlayer(clientnum, MESSAGE_MISC, "Map sync mismatch detected on level load. Rejoining is recommended.");
+			if ( !g_mapSnapshotRecoveryRequested )
+			{
+				g_mapSnapshotRecoveryRequested = true;
+				requestAuthoritativeMapSnapshotFromHost(localTileChecksum);
+				messagePlayer(clientnum, MESSAGE_MISC, "Map sync mismatch detected. Requesting host snapshot.");
+			}
 		}
 	}
     
@@ -7043,6 +7406,101 @@ static std::unordered_map<Uint32, void(*)()> clientPacketHandlers = {
 #endif
 	} },
 
+	{ 'MSNP', []() {
+		if ( net_packet->len < kMapSnapshotChunkHeaderSize )
+		{
+			return;
+		}
+		const int targetPlayer = net_packet->data[4];
+		if ( targetPlayer != clientnum )
+		{
+			return;
+		}
+		if ( net_packet->data[5] != kMapSnapshotPacketVersion )
+		{
+			printlog("[NET]: ignoring map snapshot chunk with unsupported version=%u",
+				static_cast<unsigned>(net_packet->data[5]));
+			return;
+		}
+		const int level = static_cast<Sint8>(net_packet->data[6]);
+		const bool secret = net_packet->data[7] != 0;
+		const Uint32 seed = SDLNet_Read32(&net_packet->data[8]);
+		if ( level != currentlevel || secret != static_cast<bool>(secretlevel) || seed != mapseed )
+		{
+			printlog("[NET]: ignoring stale authoritative map snapshot chunk level=%d secret=%d seed=%u current_level=%d current_secret=%d current_seed=%u",
+				level, secret ? 1 : 0, seed, currentlevel, secretlevel ? 1 : 0, mapseed);
+			return;
+		}
+		const Uint16 transferId = SDLNet_Read16(&net_packet->data[12]);
+		const Uint16 chunkIndex = SDLNet_Read16(&net_packet->data[14]);
+		const Uint16 chunkCount = SDLNet_Read16(&net_packet->data[16]);
+		const Uint32 totalBytes = SDLNet_Read32(&net_packet->data[18]);
+		const Uint32 checksum = SDLNet_Read32(&net_packet->data[22]);
+		const Uint16 payloadBytes = SDLNet_Read16(&net_packet->data[26]);
+		if ( chunkCount == 0 || chunkIndex >= chunkCount || net_packet->len != kMapSnapshotChunkHeaderSize + payloadBytes )
+		{
+			printlog("[NET]: ignoring malformed authoritative map snapshot chunk transfer=%u chunk=%u/%u len=%d payload=%u",
+				transferId, static_cast<unsigned>(chunkIndex), static_cast<unsigned>(chunkCount),
+				net_packet->len, static_cast<unsigned>(payloadBytes));
+			return;
+		}
+
+		const bool newTransfer = !g_pendingMapSnapshotReceive.active
+			|| g_pendingMapSnapshotReceive.transferId != transferId
+			|| g_pendingMapSnapshotReceive.level != static_cast<Uint8>(level)
+			|| g_pendingMapSnapshotReceive.secret != secret
+			|| g_pendingMapSnapshotReceive.seed != seed;
+		if ( newTransfer )
+		{
+			resetPendingMapSnapshotReceive();
+			g_pendingMapSnapshotReceive.active = true;
+			g_pendingMapSnapshotReceive.level = static_cast<Uint8>(level);
+			g_pendingMapSnapshotReceive.secret = secret;
+			g_pendingMapSnapshotReceive.seed = seed;
+			g_pendingMapSnapshotReceive.transferId = transferId;
+			g_pendingMapSnapshotReceive.chunkCount = chunkCount;
+			g_pendingMapSnapshotReceive.totalBytes = totalBytes;
+			g_pendingMapSnapshotReceive.checksum = checksum;
+			g_pendingMapSnapshotReceive.bytes.assign(totalBytes, 0);
+			g_pendingMapSnapshotReceive.receivedChunks.assign(chunkCount, 0);
+			printlog("[NET]: receiving authoritative map snapshot transfer=%u level=%d secret=%d seed=%u bytes=%u chunks=%u checksum=%u",
+				transferId, level, secret ? 1 : 0, seed, totalBytes,
+				static_cast<unsigned>(chunkCount), checksum);
+		}
+		else if ( g_pendingMapSnapshotReceive.chunkCount != chunkCount
+			|| g_pendingMapSnapshotReceive.totalBytes != totalBytes
+			|| g_pendingMapSnapshotReceive.checksum != checksum )
+		{
+			printlog("[NET]: dropping authoritative map snapshot transfer=%u due to metadata mismatch", transferId);
+			resetPendingMapSnapshotReceive();
+			return;
+		}
+
+		const size_t copyOffset = static_cast<size_t>(chunkIndex) * kMapSnapshotChunkPayloadMax;
+		if ( copyOffset + payloadBytes > g_pendingMapSnapshotReceive.bytes.size() )
+		{
+			printlog("[NET]: ignoring out-of-range authoritative map snapshot chunk transfer=%u chunk=%u offset=%zu payload=%u total=%zu",
+				transferId, static_cast<unsigned>(chunkIndex), copyOffset,
+				static_cast<unsigned>(payloadBytes), g_pendingMapSnapshotReceive.bytes.size());
+			resetPendingMapSnapshotReceive();
+			return;
+		}
+		if ( payloadBytes > 0 )
+		{
+			memcpy(g_pendingMapSnapshotReceive.bytes.data() + copyOffset,
+				net_packet->data + kMapSnapshotChunkHeaderSize, payloadBytes);
+		}
+		if ( !g_pendingMapSnapshotReceive.receivedChunks[chunkIndex] )
+		{
+			g_pendingMapSnapshotReceive.receivedChunks[chunkIndex] = 1;
+			++g_pendingMapSnapshotReceive.receivedChunkCount;
+		}
+		if ( g_pendingMapSnapshotReceive.receivedChunkCount == g_pendingMapSnapshotReceive.chunkCount )
+		{
+			applyPendingMapSnapshotReceive();
+		}
+	} },
+
 	{ 'MAPT',[]() {
 		int x = SDLNet_Read16(&net_packet->data[4]);
 		int y = SDLNet_Read16(&net_packet->data[6]);
@@ -7326,6 +7784,40 @@ static std::unordered_map<Uint32, void(*)()> serverPacketHandlers = {
 	// network scan
 	{'SCAN', [](){
 	    handleScanPacket();
+	}},
+
+	{'MSRQ', []() {
+		if ( net_packet->len < 16 || net_packet->data[5] != kMapSnapshotPacketVersion )
+		{
+			return;
+		}
+		const int player = std::min(net_packet->data[4], static_cast<Uint8>(MAXPLAYERS - 1));
+		if ( player <= 0 || player >= MAXPLAYERS || client_disconnected[player] || players[player]->isLocalPlayer() )
+		{
+			return;
+		}
+		const int requestedLevel = static_cast<Sint8>(net_packet->data[6]);
+		const bool requestedSecret = net_packet->data[7] != 0;
+		const Uint32 requestedSeed = SDLNet_Read32(&net_packet->data[8]);
+		const Uint32 requestedChecksum = SDLNet_Read32(&net_packet->data[12]);
+		if ( requestedLevel != currentlevel || requestedSecret != static_cast<bool>(secretlevel) || requestedSeed != mapseed )
+		{
+			printlog("[NET]: ignoring map snapshot request from player=%d due to stale level=%d/%d secret=%d/%d seed=%u/%u",
+				player, requestedLevel, currentlevel,
+				requestedSecret ? 1 : 0, secretlevel ? 1 : 0,
+				requestedSeed, mapseed);
+			return;
+		}
+		if ( !authoritativeMapTileChecksumValid )
+		{
+			printlog("[NET]: ignoring map snapshot request from player=%d because authoritative checksum is unavailable",
+				player);
+			return;
+		}
+		printlog("[NET]: received map snapshot request from player=%d level=%d secret=%d seed=%u requested_checksum=%u host_checksum=%u",
+			player, requestedLevel, requestedSecret ? 1 : 0, requestedSeed,
+			requestedChecksum, authoritativeMapTileChecksum);
+		sendAuthoritativeMapSnapshotToClient(player);
 	}},
 
 	// pause game
@@ -10115,6 +10607,8 @@ void closeNetworkInterfaces()
 	printlog("closing network interfaces...\n");
 
 	receivedclientnum = false;
+	g_mapSnapshotRecoveryRequested = false;
+	resetPendingMapSnapshotReceive();
 
 	if (net_handler)
 	{

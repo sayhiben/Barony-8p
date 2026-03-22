@@ -3302,13 +3302,13 @@ int loadMap(const char* filename2, map_t* destmap, list_t* entlist, list_t* crea
 	return numentities;
 }
 
-Uint32 calculateMapTileChecksum(const map_t& source)
+namespace
 {
-	// Standard 32-bit FNV-1a offset basis / prime constants.
 	constexpr Uint32 kFnv1aOffsetBasis32 = 2166136261u;
 	constexpr Uint32 kFnv1aPrime32 = 16777619u;
-	Uint32 checksum = kFnv1aOffsetBasis32;
-	auto mixBytes = [&checksum](const void* data, const size_t size) {
+
+	void mixFnv1aBytes(Uint32& checksum, const void* data, const size_t size)
+	{
 		if ( !data )
 		{
 			return;
@@ -3319,18 +3319,404 @@ Uint32 calculateMapTileChecksum(const map_t& source)
 			checksum ^= bytes[i];
 			checksum *= kFnv1aPrime32;
 		}
-	};
+	}
 
-	mixBytes(&source.width, sizeof(source.width));
-	mixBytes(&source.height, sizeof(source.height));
-	mixBytes(&source.skybox, sizeof(source.skybox));
-	mixBytes(source.flags, sizeof(source.flags));
+	template <typename T>
+	void mixFnv1aValue(Uint32& checksum, const T& value)
+	{
+		mixFnv1aBytes(checksum, &value, sizeof(value));
+	}
+
+	void mixFnv1aString(Uint32& checksum, const char* str)
+	{
+		const Uint32 length = str ? static_cast<Uint32>(strlen(str)) : 0;
+		mixFnv1aValue(checksum, length);
+		if ( length > 0 )
+		{
+			mixFnv1aBytes(checksum, str, length);
+		}
+	}
+}
+
+Uint32 calculateMapTileChecksum(const map_t& source)
+{
+	Uint32 checksum = kFnv1aOffsetBasis32;
+	// Standard 32-bit FNV-1a offset basis / prime constants.
+	mixFnv1aValue(checksum, source.width);
+	mixFnv1aValue(checksum, source.height);
+	mixFnv1aValue(checksum, source.skybox);
+	mixFnv1aBytes(checksum, source.flags, sizeof(source.flags));
 	if ( source.tiles )
 	{
 		const size_t tilesSize = static_cast<size_t>(source.width) * source.height * MAPLAYERS * sizeof(Sint32);
-		mixBytes(source.tiles, tilesSize);
+		mixFnv1aBytes(checksum, source.tiles, tilesSize);
+	}
+	const Uint32 tileAttributeCount = static_cast<Uint32>(source.tileAttributes.size());
+	mixFnv1aValue(checksum, tileAttributeCount);
+	for ( const auto& entry : source.tileAttributes )
+	{
+		const Sint32 key = static_cast<Sint32>(entry.first);
+		mixFnv1aValue(checksum, key);
+		mixFnv1aValue(checksum, entry.second);
 	}
 	return checksum;
+}
+
+Uint32 calculateMapEntityChecksum(const map_t& source)
+{
+	Uint32 checksum = kFnv1aOffsetBasis32;
+	Uint32 entityCount = 0;
+	if ( !source.entities )
+	{
+		mixFnv1aValue(checksum, entityCount);
+		return checksum;
+	}
+
+	for ( node_t* node = source.entities->first; node != nullptr; node = node->next )
+	{
+		if ( node->element )
+		{
+			++entityCount;
+		}
+	}
+	mixFnv1aValue(checksum, entityCount);
+
+	for ( node_t* node = source.entities->first; node != nullptr; node = node->next )
+	{
+		Entity* entity = static_cast<Entity*>(node->element);
+		if ( !entity )
+		{
+			continue;
+		}
+
+		mixFnv1aValue(checksum, entity->x);
+		mixFnv1aValue(checksum, entity->y);
+		mixFnv1aValue(checksum, entity->z);
+		mixFnv1aValue(checksum, entity->yaw);
+		mixFnv1aValue(checksum, entity->pitch);
+		mixFnv1aValue(checksum, entity->roll);
+		mixFnv1aValue(checksum, entity->focalx);
+		mixFnv1aValue(checksum, entity->focaly);
+		mixFnv1aValue(checksum, entity->focalz);
+		mixFnv1aValue(checksum, entity->scalex);
+		mixFnv1aValue(checksum, entity->scaley);
+		mixFnv1aValue(checksum, entity->scalez);
+		mixFnv1aValue(checksum, entity->sizex);
+		mixFnv1aValue(checksum, entity->sizey);
+		mixFnv1aValue(checksum, entity->sprite);
+		mixFnv1aValue(checksum, entity->parent);
+		mixFnv1aValue(checksum, entity->mapGenerationRoomX);
+		mixFnv1aValue(checksum, entity->mapGenerationRoomY);
+		for ( const auto skill : entity->skill )
+		{
+			mixFnv1aValue(checksum, skill);
+		}
+		for ( const auto fskill : entity->fskill )
+		{
+			mixFnv1aValue(checksum, fskill);
+		}
+		for ( const bool flag : entity->flags )
+		{
+			const Uint8 flagValue = flag ? 1 : 0;
+			mixFnv1aValue(checksum, flagValue);
+		}
+		mixFnv1aString(checksum, entity->string);
+	}
+
+	return checksum;
+}
+
+MapGeometrySnapshot captureMapGeometrySnapshot(const map_t& source)
+{
+	MapGeometrySnapshot snapshot;
+	memcpy(snapshot.name, source.name, sizeof(snapshot.name));
+	memcpy(snapshot.author, source.author, sizeof(snapshot.author));
+	memcpy(snapshot.filename, source.filename, sizeof(snapshot.filename));
+	snapshot.width = source.width;
+	snapshot.height = source.height;
+	snapshot.skybox = source.skybox;
+	memcpy(snapshot.flags, source.flags, sizeof(snapshot.flags));
+	if ( source.tiles && source.width > 0 && source.height > 0 )
+	{
+		const size_t tileCount = static_cast<size_t>(source.width) * source.height * MAPLAYERS;
+		snapshot.tiles.assign(source.tiles, source.tiles + tileCount);
+	}
+	snapshot.tileAttributes = source.tileAttributes;
+	return snapshot;
+}
+
+namespace
+{
+	bool allocateMapVismapBuffer(bool*& dest, const size_t tileCount)
+	{
+		dest = static_cast<bool*>(malloc(sizeof(bool) * tileCount));
+		if ( !dest )
+		{
+			return false;
+		}
+		memset(dest, 0, sizeof(bool) * tileCount);
+		return true;
+	}
+
+	void resetMapMinimapData()
+	{
+		for ( int x = 0; x < MINIMAP_MAX_DIMENSION; ++x )
+		{
+			for ( int y = 0; y < MINIMAP_MAX_DIMENSION; ++y )
+			{
+				minimap[y][x] = 0;
+			}
+		}
+	}
+
+	void resetMapLightmapsForSnapshot(const map_t& destmap)
+	{
+		const size_t lightmapTileCount = static_cast<size_t>(destmap.width) * destmap.height;
+		const size_t lightmapSmoothedCount = static_cast<size_t>(destmap.width + 2) * (destmap.height + 2);
+		for ( int c = 0; c < MAXPLAYERS + 1; ++c )
+		{
+			auto& lightmap = lightmaps[c];
+			auto& lightmapSmoothed = lightmapsSmoothed[c];
+			lightmap.clear();
+			lightmap.resize(lightmapTileCount);
+			lightmapSmoothed.clear();
+			lightmapSmoothed.resize(lightmapSmoothedCount);
+			if ( strncmp(destmap.name, "Hell", 4) )
+			{
+				memset(lightmap.data(), 0, sizeof(vec4_t) * lightmapTileCount);
+				memset(lightmapSmoothed.data(), 0, sizeof(vec4_t) * lightmapSmoothedCount);
+
+#ifndef EDITOR
+				if ( !strncmp(destmap.filename, "fortress", 8) )
+				{
+					Vector4 ambienceColor = { 128.f, 128.f, 152.f, 1.f };
+					ambienceColor.x *= ambienceColor.w;
+					ambienceColor.y *= ambienceColor.w;
+					ambienceColor.z *= ambienceColor.w;
+					for ( size_t i = 0; i < lightmapTileCount; ++i )
+					{
+						lightmap[i].x = ambienceColor.x;
+						lightmap[i].y = ambienceColor.y;
+						lightmap[i].z = ambienceColor.z;
+					}
+					for ( size_t i = 0; i < lightmapSmoothedCount; ++i )
+					{
+						lightmapSmoothed[i].x = ambienceColor.x;
+						lightmapSmoothed[i].y = ambienceColor.y;
+						lightmapSmoothed[i].z = ambienceColor.z;
+					}
+				}
+				if ( (svFlags & SV_FLAG_CHEATS)
+					&& (cvar_map_ambience->x > 0.01
+						|| cvar_map_ambience->y > 0.01
+						|| cvar_map_ambience->z > 0.01) )
+				{
+					auto ambienceColor = *cvar_map_ambience;
+					ambienceColor.x *= ambienceColor.w;
+					ambienceColor.y *= ambienceColor.w;
+					ambienceColor.z *= ambienceColor.w;
+					for ( size_t i = 0; i < lightmapTileCount; ++i )
+					{
+						lightmap[i].x = ambienceColor.x;
+						lightmap[i].y = ambienceColor.y;
+						lightmap[i].z = ambienceColor.z;
+					}
+					for ( size_t i = 0; i < lightmapSmoothedCount; ++i )
+					{
+						lightmapSmoothed[i].x = ambienceColor.x;
+						lightmapSmoothed[i].y = ambienceColor.y;
+						lightmapSmoothed[i].z = ambienceColor.z;
+					}
+				}
+#endif
+			}
+			else
+			{
+				for ( size_t i = 0; i < lightmapTileCount; ++i )
+				{
+					lightmap[i].x = hellAmbience;
+					lightmap[i].y = hellAmbience;
+					lightmap[i].z = hellAmbience;
+#ifndef EDITOR
+					if ( svFlags & SV_FLAG_CHEATS )
+					{
+						lightmap[i].x = *cvar_hell_ambience;
+						lightmap[i].y = *cvar_hell_ambience;
+						lightmap[i].z = *cvar_hell_ambience;
+					}
+#endif
+				}
+				for ( size_t i = 0; i < lightmapSmoothedCount; ++i )
+				{
+					lightmapSmoothed[i].x = hellAmbience;
+					lightmapSmoothed[i].y = hellAmbience;
+					lightmapSmoothed[i].z = hellAmbience;
+#ifndef EDITOR
+					if ( svFlags & SV_FLAG_CHEATS )
+					{
+						lightmapSmoothed[i].x = *cvar_hell_ambience;
+						lightmapSmoothed[i].y = *cvar_hell_ambience;
+						lightmapSmoothed[i].z = *cvar_hell_ambience;
+					}
+#endif
+				}
+			}
+		}
+	}
+}
+
+bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapshot)
+{
+	if ( snapshot.width == 0 || snapshot.height == 0 )
+	{
+		return false;
+	}
+	const size_t vismapTileCount = static_cast<size_t>(snapshot.width) * snapshot.height;
+	const size_t tileCount = vismapTileCount * MAPLAYERS;
+	if ( snapshot.tiles.size() != tileCount )
+	{
+		return false;
+	}
+
+	const bool dimensionsChanged = !destmap.tiles
+		|| destmap.width != snapshot.width
+		|| destmap.height != snapshot.height
+#ifdef EDITOR
+		|| !camera.vismap
+#endif
+		|| !menucam.vismap
+		|| !shoparea;
+
+	bool missingPlayerVismap = false;
+	for ( int i = 0; i < MAXPLAYERS; ++i )
+	{
+		if ( !cameras[i].vismap )
+		{
+			missingPlayerVismap = true;
+			break;
+		}
+	}
+
+	if ( dimensionsChanged || missingPlayerVismap )
+	{
+		Sint32* newTiles = static_cast<Sint32*>(malloc(sizeof(Sint32) * tileCount));
+		if ( !newTiles )
+		{
+			return false;
+		}
+
+#ifdef EDITOR
+		bool* newEditorVismap = nullptr;
+		if ( !allocateMapVismapBuffer(newEditorVismap, vismapTileCount) )
+		{
+			free(newTiles);
+			return false;
+		}
+#endif
+		bool* newMenuVismap = nullptr;
+		if ( !allocateMapVismapBuffer(newMenuVismap, vismapTileCount) )
+		{
+#ifdef EDITOR
+			free(newEditorVismap);
+#endif
+			free(newTiles);
+			return false;
+		}
+		bool* newPlayerVismaps[MAXPLAYERS] = { nullptr };
+		for ( int i = 0; i < MAXPLAYERS; ++i )
+		{
+			if ( !allocateMapVismapBuffer(newPlayerVismaps[i], vismapTileCount) )
+			{
+				for ( int j = 0; j < i; ++j )
+				{
+					free(newPlayerVismaps[j]);
+				}
+				free(newMenuVismap);
+#ifdef EDITOR
+				free(newEditorVismap);
+#endif
+				free(newTiles);
+				return false;
+			}
+		}
+		bool* newShoparea = static_cast<bool*>(malloc(sizeof(bool) * vismapTileCount));
+		if ( !newShoparea )
+		{
+			for ( int i = 0; i < MAXPLAYERS; ++i )
+			{
+				free(newPlayerVismaps[i]);
+			}
+			free(newMenuVismap);
+#ifdef EDITOR
+			free(newEditorVismap);
+#endif
+			free(newTiles);
+			return false;
+		}
+		memset(newShoparea, 0, sizeof(bool) * vismapTileCount);
+
+		if ( destmap.tiles )
+		{
+			free(destmap.tiles);
+		}
+		destmap.tiles = newTiles;
+
+#ifdef EDITOR
+		if ( camera.vismap )
+		{
+			free(camera.vismap);
+		}
+		camera.vismap = newEditorVismap;
+#endif
+		if ( menucam.vismap )
+		{
+			free(menucam.vismap);
+		}
+		menucam.vismap = newMenuVismap;
+		for ( int i = 0; i < MAXPLAYERS; ++i )
+		{
+			if ( cameras[i].vismap )
+			{
+				free(cameras[i].vismap);
+			}
+			cameras[i].vismap = newPlayerVismaps[i];
+		}
+		if ( shoparea )
+		{
+			free(shoparea);
+		}
+		shoparea = newShoparea;
+	}
+	else
+	{
+#ifdef EDITOR
+		memset(camera.vismap, 0, sizeof(bool) * vismapTileCount);
+#endif
+		memset(menucam.vismap, 0, sizeof(bool) * vismapTileCount);
+		for ( int i = 0; i < MAXPLAYERS; ++i )
+		{
+			memset(cameras[i].vismap, 0, sizeof(bool) * vismapTileCount);
+		}
+		memset(shoparea, 0, sizeof(bool) * vismapTileCount);
+	}
+
+	memcpy(destmap.name, snapshot.name, sizeof(destmap.name));
+	memcpy(destmap.author, snapshot.author, sizeof(destmap.author));
+	memcpy(destmap.filename, snapshot.filename, sizeof(destmap.filename));
+	destmap.width = snapshot.width;
+	destmap.height = snapshot.height;
+	destmap.skybox = snapshot.skybox;
+	memcpy(destmap.flags, snapshot.flags, sizeof(destmap.flags));
+	memcpy(destmap.tiles, snapshot.tiles.data(), sizeof(Sint32) * tileCount);
+	destmap.tileAttributes = snapshot.tileAttributes;
+	destmap.liquidSfxPlayedTiles.clear();
+
+#ifndef EDITOR
+	destmap.setMapHDRSettings();
+#endif
+	resetMapLightmapsForSnapshot(destmap);
+	resetMapMinimapData();
+	return true;
 }
 
 /*-------------------------------------------------------------------------------

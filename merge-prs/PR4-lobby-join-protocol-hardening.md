@@ -19,7 +19,39 @@ Large-lobby join/start reliability is a core blocker for 1-15 support. Existing 
   - artifact: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316`
   - summary: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316/summary.env`
   - host/client both generated `The Mines` with `players=2`; client received `mask=0x0003 checksum=2380154547` before load and logged no mismatch
-- Remaining caveat for extraction planning: mismatch handling is warning-only today. Automatic recovery still needs a follow-up host-authoritative tile snapshot path if we want hard guarantees after checksum failure.
+- Current branch follow-up now also implements the host-authoritative geometry recovery path for checksum failure:
+  - client requests a snapshot when post-load tile checksum mismatches the host
+  - host streams a reliable chunked geometry snapshot and client rebuilds tiles/pathing/chunks from that authoritative payload
+- Current branch follow-up now extends the parity signal itself:
+  - the shared tile checksum includes `tileAttributes`, not just dimensions/flags/tile layers
+  - `LVLC` / `LVLR` metadata now carries a second initial entity checksum for the post-load entity scene before clients remove `NOUPDATE` placeholders
+  - clients log entity-scene drift separately from geometry drift so reports can distinguish “same walls, different placements/content” from true tile mismatches
+- Targeted LAN smoke recovery lane with a client-only forced mismatch passed:
+  - artifact: `tests/smoke/artifacts/map-desync-snapshot-recovery-20260321-213455`
+  - summary: `tests/smoke/artifacts/map-desync-snapshot-recovery-20260321-213455/summary.env`
+  - host received the request and streamed `19621` bytes in `11` chunks; client recovered from `local_checksum=1494320743` back to host checksum `2380154547`
+- Post-hardening regression check remained green after the checksum scope/version bump:
+  - smoke-enabled rebuild: `cmake --build build-mac-smoke -j8 --target barony`
+  - artifact: `tests/smoke/artifacts/map-desync-entity-checksum-20260321-215354`
+  - summary: `tests/smoke/artifacts/map-desync-entity-checksum-20260321-215354/summary.env`
+- Broader follow-up smoke pass stayed green on the stable regression lanes:
+  - 2-instance baseline dungeon transition: `tests/smoke/artifacts/level-sync-baseline-2p-20260321-221439`
+  - 4-instance dungeon/mapgen transition with a 3-second auto-start delay: `tests/smoke/artifacts/level-sync-4p-mapgen-delay3-20260321-221847`
+  - 3-run 4-instance HELO soak: `tests/smoke/artifacts/helo-soak-level-sync-20260321-221956`
+  - HELO adversarial matrix expectations matched in all pass/fail cases: `tests/smoke/artifacts/helo-adversarial-level-sync-20260321-222152`
+  - standard 6-instance churn/ready-sync lane: `tests/smoke/artifacts/join-leave-churn-standard-20260321-222825`
+  - save/reload compatibility sweep: `tests/smoke/artifacts/save-reload-compat-level-sync-20260321-223036`
+- Follow-up smoke hardening closed the zero-delay start caveat:
+  - smoke host auto-start now waits for connected-slot parity and host-observed lobby-entry acks before firing
+  - 4-instance zero-delay auto-start lane now passes cleanly with all clients loading `start.lmp`: `tests/smoke/artifacts/level-sync-4p-mapgen-delay0-smokegate-20260321-230540`
+  - summary: `tests/smoke/artifacts/level-sync-4p-mapgen-delay0-smokegate-20260321-230540/summary.env`
+- Same-level reload follow-up is now green:
+  - 2-instance procedural reload lane with `mapgen-reload-same-level=1` passed and matched both requested reload seeds (`100100`, `100101`): `tests/smoke/artifacts/reload-procedural-level-sync-2p-20260321-230638`
+  - summary: `tests/smoke/artifacts/reload-procedural-level-sync-2p-20260321-230638/summary.env`
+- Remaining exploratory lanes were not counted:
+  - churn plus gameplay auto-start drifted into midgame-rejoin retries instead of standard lobby churn: `tests/smoke/artifacts/join-leave-churn-level-sync-20260321-222429`
+  - remote-combat follow-up did not produce clean gameplay signal in this local harness: `tests/smoke/artifacts/remote-combat-level-sync-20260321-223515`
+- Remaining caveat for extraction planning: the recovery is geometry-scoped. It fixes tile/flag/tile-attribute drift after load, but it does not make the full level bootstrap host-authoritative for static entity/content drift.
 
 ## What and Why
 Harden join protocol and lobby flow so 4p and 15p sessions remain stable, while preserving compatibility/fallback behavior.

@@ -74,6 +74,34 @@ namespace Net
 			ok ? "ok" : "fail");
 	}
 
+	bool forceLevelLoadMapMismatch(map_t& map)
+	{
+		static bool initialized = false;
+		static bool enabled = false;
+		static bool consumed = false;
+		if ( !initialized )
+		{
+			initialized = true;
+			enabled = parseEnvBool("BARONY_SMOKE_FORCE_MAP_SNAPSHOT_RECOVERY", false);
+			if ( enabled )
+			{
+				printlog("[SMOKE]: BARONY_SMOKE_FORCE_MAP_SNAPSHOT_RECOVERY is enabled");
+			}
+		}
+		if ( !enabled || consumed || !map.tiles || map.width == 0 || map.height == 0 )
+		{
+			return false;
+		}
+		consumed = true;
+		const size_t tileCount = static_cast<size_t>(map.width) * map.height * MAPLAYERS;
+		const size_t index = tileCount > 1 ? 1 : 0;
+		const Sint32 original = map.tiles[index];
+		map.tiles[index] = (original == 0) ? 1 : 0;
+		printlog("[SMOKE]: forced level-load map mismatch tile_index=%zu original=%d patched=%d",
+			index, original, map.tiles[index]);
+		return true;
+	}
+
 	void traceLobbyJoinReject(const Uint32 result, const Uint8 requestedSlot, const bool lockedSlots[MAXPLAYERS], const bool disconnectedSlots[MAXPLAYERS])
 	{
 		if ( !isJoinRejectTraceEnabled() )

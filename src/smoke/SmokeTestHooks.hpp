@@ -36,6 +36,7 @@ namespace MainMenu
 		void (*kickPlayer)(int index) = nullptr;
 		void (*requestLobbyPlayerCountSelection)(int targetCount) = nullptr;
 		void (*requestLobbyVisiblePage)(int pageIndex) = nullptr;
+		int (*joinedLobbyPlayerCount)() = nullptr;
 	};
 
 	struct HeloChunkSendPlanEntry
@@ -106,10 +107,11 @@ namespace GameUI
 		int heloChunkPayloadMaxOverride(int defaultPayloadMax, int minPayloadMax = 64);
 		bool isJoinRejectTraceEnabled();
 		void traceLobbyJoinReject(Uint32 result, Uint8 requestedSlot, const bool lockedSlots[MAXPLAYERS], const bool disconnectedSlots[MAXPLAYERS]);
-		bool isInventoryPacketTraceEnabled();
-		void traceInventoryPacketUse(int client, int count);
-		void traceInventoryPacketEquip(const char* op, int client, int count, bool cleanupRequired,
-			bool cleanupCleared, int equipResult, int slot, const char* edge);
+	bool isInventoryPacketTraceEnabled();
+	void traceInventoryPacketUse(int client, int count);
+	void traceInventoryPacketEquip(const char* op, int client, int count, bool cleanupRequired,
+		bool cleanupCleared, int equipResult, int slot, const char* edge);
+	bool forceLevelLoadMapMismatch(map_t& map);
 	}
 
 namespace Combat

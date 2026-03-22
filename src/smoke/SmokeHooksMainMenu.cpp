@@ -935,11 +935,21 @@ namespace MainMenu
 				return;
 			}
 
+			const int joined = callbacks.joinedLobbyPlayerCount
+				? callbacks.joinedLobbyPlayerCount()
+				: connected;
+			if ( joined < cfg.expectedPlayers )
+			{
+				runtime.expectedPlayersMetTick = 0;
+				return;
+			}
+
 			if ( runtime.expectedPlayersMetTick == 0 )
 			{
 				runtime.expectedPlayersMetTick = ticks;
-				printlog("[SMOKE]: expected players reached (%d/%d), start in %d sec",
-					connected, cfg.expectedPlayers, cfg.autoStartDelayTicks / TICKS_PER_SECOND);
+				printlog("[SMOKE]: expected players reached (%d/%d connected, %d/%d joined), start in %d sec",
+					connected, cfg.expectedPlayers, joined, cfg.expectedPlayers,
+					cfg.autoStartDelayTicks / TICKS_PER_SECOND);
 			}
 			if ( ticks - runtime.expectedPlayersMetTick < static_cast<Uint32>(cfg.autoStartDelayTicks) )
 			{

@@ -139,13 +139,49 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - host now freezes a connected-player slot mask for the level load, computes a final tile checksum after generation, and appends both to `LVLC` / `LVLR`
   - clients now consume that authoritative mask during map scaling/spawn filtering and compare their post-load tile checksum against the host value
 - Added a shared tile checksum helper over width/height/skybox/flags/tile layers and a client warning path when host/local tile checksums disagree.
+- Implemented automatic checksum-mismatch recovery for level-load map geometry:
+  - client now requests an authoritative host snapshot on checksum failure
+  - host streams map geometry snapshot chunks (`name/author/filename`, `width/height/skybox`, flags, tiles, tile attributes) over reliable packets
+  - client applies the snapshot, rebuilds pathing/chunks, and confirms the recovered checksum
+- Extended level-load parity checks beyond raw tiles:
+  - the shared tile checksum now also covers `tileAttributes`, so slippery/slow/grease/treasure-room drift is detected together with wall/layout drift
+  - `LVLC` / `LVLR` level-load metadata now carries a second initial entity checksum covering the post-load entity scene before clients discard `NOUPDATE` placeholders
+  - clients log an `entity sync mismatch` when initial placements/content diverge even if final geometry still matches
 - Smoke-only connected-player overrides now remain available for host/single-runtime mapgen lanes, but network clients no longer override the host's authoritative level-load mask.
 - Targeted 2-instance LAN repro passed with a client-only smoke override of `5` connected players:
   - host authoritative inputs: `players=2 mask=0x0003 checksum=2380154547`
   - client received the same authoritative inputs before loading and generated the same `The Mines` floor (`players=2`, identical room/economy summary)
   - artifact: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316`
   - summary: `tests/smoke/artifacts/map-desync-authoritative-launch-20260321-210316/summary.env`
-- Current caveat: checksum mismatch handling is warning-only (`printlog` + player-facing rejoin message). There is not yet a host-tile snapshot fallback for automatic recovery.
+- Targeted 2-instance LAN recovery lane passed with a client-only forced checksum mismatch:
+  - client intentionally flipped one tile after local load, logged `local_checksum=1494320743` vs host `2380154547`, requested host recovery, and applied transfer `1`
+  - host streamed an authoritative `19621` byte snapshot in `11` reliable chunks; client rebuilt geometry and finished with checksum `2380154547`
+  - artifact: `tests/smoke/artifacts/map-desync-snapshot-recovery-20260321-213455`
+  - summary: `tests/smoke/artifacts/map-desync-snapshot-recovery-20260321-213455/summary.env`
+- Post-hardening regression checks passed after adding tile-attribute coverage and the initial entity checksum:
+  - smoke-enabled target rebuild succeeded: `cmake --build build-mac-smoke -j8 --target barony`
+  - 2-instance forced-recovery lane remained green on the updated packet/checksum format
+  - artifact: `tests/smoke/artifacts/map-desync-entity-checksum-20260321-215354`
+  - summary: `tests/smoke/artifacts/map-desync-entity-checksum-20260321-215354/summary.env`
+- Broader smoke pass on the same branch stayed green for the stable/high-signal lanes:
+  - 2-instance baseline dungeon transition: `tests/smoke/artifacts/level-sync-baseline-2p-20260321-221439`
+  - 4-instance dungeon/mapgen transition with a 3-second lobby settle delay: `tests/smoke/artifacts/level-sync-4p-mapgen-delay3-20260321-221847`
+  - 3-run 4-instance HELO soak: `tests/smoke/artifacts/helo-soak-level-sync-20260321-221956`
+  - HELO adversarial matrix (reverse/even-odd/duplicate-first expected-pass, drop-last/duplicate-conflict-first expected-fail): `tests/smoke/artifacts/helo-adversarial-level-sync-20260321-222152`
+  - standard 6-instance join/leave churn with ready-sync assertions: `tests/smoke/artifacts/join-leave-churn-standard-20260321-222825`
+  - save/reload owner-encoding compatibility: `tests/smoke/artifacts/save-reload-compat-level-sync-20260321-223036`
+- Follow-up smoke gating closed the zero-delay lobby-start race:
+  - host smoke auto-start now waits for `connected` and `joined` parity, where `joined` means each remote client has actually entered the lobby (`JACK`-ack path) before auto-start fires
+  - 4-instance zero-delay auto-start lane now passes cleanly with all clients loading `start.lmp`: `tests/smoke/artifacts/level-sync-4p-mapgen-delay0-smokegate-20260321-230540`
+  - summary: `tests/smoke/artifacts/level-sync-4p-mapgen-delay0-smokegate-20260321-230540/summary.env`
+- Same-level reload follow-up is now green on a networked lane:
+  - 2-instance procedural reload/regeneration lane with `mapgen-reload-same-level=1` passed and matched both requested reload seeds (`100100`, `100101`)
+  - artifact: `tests/smoke/artifacts/reload-procedural-level-sync-2p-20260321-230638`
+  - summary: `tests/smoke/artifacts/reload-procedural-level-sync-2p-20260321-230638/summary.env`
+- Experimental lanes that were not counted toward confidence:
+  - churn-with-gameplay auto-start drifted into midgame-rejoin retries instead of standard lobby churn: `tests/smoke/artifacts/join-leave-churn-level-sync-20260321-222429`
+  - remote-combat lane aborted before gameplay because host launch never completed: `tests/smoke/artifacts/remote-combat-level-sync-20260321-223515`
+- Current caveat: the fallback is geometry-scoped. It guarantees tile/flag/tile-attribute parity after load, but it is not a full host-authoritative level bootstrap for static entity/content drift.
 
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).

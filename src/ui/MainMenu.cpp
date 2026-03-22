@@ -106,6 +106,17 @@ namespace MainMenu {
 		int receivedCount = 0;
 	};
 	static HeloChunkReassemblyState g_heloChunkReassemblyState;
+	static bool g_lobbyStartIssued = false;
+	static char g_lobbyStartPacketType[5] = "";
+	static bool g_lobbyJoinAcknowledged[MAXPLAYERS] = { false };
+
+	struct PendingJoinControlPacketState
+	{
+		bool valid = false;
+		int len = 0;
+		Uint8 data[NET_PACKET_SIZE] = { 0 };
+	};
+	static PendingJoinControlPacketState g_pendingJoinControlPacketState;
 
 #ifdef BARONY_SMOKE_TESTS
 	using HeloChunkSendPlanEntry = SmokeTestHooks::MainMenu::HeloChunkSendPlanEntry;
@@ -141,6 +152,21 @@ namespace MainMenu {
 		g_heloChunkReassemblyState.chunks.clear();
 		g_heloChunkReassemblyState.received.clear();
 		g_heloChunkReassemblyState.receivedCount = 0;
+	}
+
+	static void resetPendingJoinControlPacketState()
+	{
+		g_pendingJoinControlPacketState.valid = false;
+		g_pendingJoinControlPacketState.len = 0;
+		memset(g_pendingJoinControlPacketState.data, 0, sizeof(g_pendingJoinControlPacketState.data));
+	}
+
+	static void resetLobbyStartSyncState()
+	{
+		g_lobbyStartIssued = false;
+		memset(g_lobbyStartPacketType, 0, sizeof(g_lobbyStartPacketType));
+		memset(g_lobbyJoinAcknowledged, 0, sizeof(g_lobbyJoinAcknowledged));
+		g_lobbyJoinAcknowledged[0] = true;
 	}
 
 	static void resetHeloChunkReassemblyStateWithLog(const char* reason)
@@ -405,6 +431,29 @@ namespace MainMenu {
 		{
 			resetHeloChunkReassemblyStateWithLog("timeout");
 		}
+	}
+
+	static bool stashPendingJoinControlPacketIfNeeded()
+	{
+		const Uint32 packetId = SDLNet_Read32(&net_packet->data[0]);
+		if ( packetId != 'STRT' && packetId != 'RSTR' )
+		{
+			return false;
+		}
+		if ( net_packet->len <= 0 || net_packet->len > NET_PACKET_SIZE )
+		{
+			printlog("[NET]: refusing to defer invalid join-time control packet len=%d", net_packet->len);
+			return false;
+		}
+		g_pendingJoinControlPacketState.valid = true;
+		g_pendingJoinControlPacketState.len = net_packet->len;
+		memcpy(g_pendingJoinControlPacketState.data, net_packet->data, net_packet->len);
+		printlog("[NET]: deferred join-time control packet %c%c%c%c while waiting for HELO",
+			static_cast<char>(net_packet->data[0]),
+			static_cast<char>(net_packet->data[1]),
+			static_cast<char>(net_packet->data[2]),
+			static_cast<char>(net_packet->data[3]));
+		return true;
 	}
 
 	enum Filter : int {
@@ -1289,6 +1338,8 @@ namespace MainMenu {
 	static bool hostLANLobbyInternal(bool playSound);
 	static bool connectToServer(const char* address, void* pLobby, LobbyType lobbyType);
 	static void startGame();
+	static void sendLobbyStartPacketToPlayer(const int player);
+	static void notifyHostLobbyJoinComplete();
 		static void kickPlayer(int index);
 		static void requestLobbyPlayerCountSelection(const int requestedCount);
 		static void requestLobbyVisiblePage(const int requestedPage);
@@ -1618,6 +1669,29 @@ namespace MainMenu {
 		{
 			return isPlayerSignedIn(slot);
 		}
+
+		static int smokeJoinedLobbyPlayerCount()
+		{
+			if ( multiplayer != SERVER )
+			{
+				return 0;
+			}
+
+			int joined = 0;
+			for ( int slot = 0; slot < MAXPLAYERS; ++slot )
+			{
+				if ( client_disconnected[slot] )
+				{
+					continue;
+				}
+				if ( slot > 0 && !g_lobbyJoinAcknowledged[slot] )
+				{
+					continue;
+				}
+				++joined;
+			}
+			return joined;
+		}
 #endif
 
 	static void tickMainMenu(Widget& widget) {
@@ -1642,7 +1716,8 @@ namespace MainMenu {
 			&smokeIsLocalPlayerSignedIn,
 			&kickPlayer,
 			&requestLobbyPlayerCountSelection,
-			&requestLobbyVisiblePage
+			&requestLobbyVisiblePage,
+			&smokeJoinedLobbyPlayerCount
 		};
 		SmokeTestHooks::MainMenu::tickAutopilot(smokeCallbacks);
 #endif
@@ -12643,6 +12718,21 @@ bind_failed:
 		    createReadyStone((int)player, false, status ? true : false);
 		}},
 
+		// client finished processing HELO and entered the lobby.
+		{'JACK', [](){
+			const int player = std::min(net_packet->data[4], (Uint8)(MAXPLAYERS - 1));
+			if ( player <= 0 || player >= MAXPLAYERS || client_disconnected[player] )
+			{
+				return;
+			}
+			g_lobbyJoinAcknowledged[player] = true;
+			if ( g_lobbyStartIssued )
+			{
+				printlog("[NET]: resending deferred lobby start packet to player %d after join ack", player);
+				sendLobbyStartPacketToPlayer(player);
+			}
+		}},
+
 		// got a chat message from client
 		{'CMSG', [](){
 		    // forward to other players
@@ -12977,6 +13067,7 @@ bind_failed:
 
 				    // finally, open a player card!
 				    if (playerNum >= 1 && playerNum < MAXPLAYERS) {
+						g_lobbyJoinAcknowledged[playerNum] = false;
 			            createReadyStone(playerNum, false, false);
 						queueReadyStateSnapshotForPlayer(playerNum);
 				    }
@@ -12996,23 +13087,71 @@ bind_failed:
 		}
 	}
 
+	static void sendLobbyStartPacketToPlayer(const int player)
+	{
+		if ( multiplayer != SERVER || player <= 0 || player >= MAXPLAYERS || client_disconnected[player] )
+		{
+			return;
+		}
+		if ( g_lobbyStartPacketType[0] == '\0' )
+		{
+			return;
+		}
+		memcpy((char*)net_packet->data, g_lobbyStartPacketType, 4);
+		SDLNet_Write32(svFlags, &net_packet->data[4]);
+		SDLNet_Write32(uniqueGameKey, &net_packet->data[8]);
+		net_packet->data[12] = loadingsavegame ? 1 : 0;
+		SDLNet_Write32(uniqueLobbyKey, &net_packet->data[13]);
+		net_packet->address.host = net_clients[player - 1].host;
+		net_packet->address.port = net_clients[player - 1].port;
+		net_packet->len = 17;
+		sendPacketSafe(net_sock, -1, net_packet, player - 1);
+	}
+
+	static void notifyHostLobbyJoinComplete()
+	{
+		if ( multiplayer != CLIENT || !net_packet || !net_packet->data || clientnum <= 0 || clientnum >= MAXPLAYERS )
+		{
+			return;
+		}
+		memcpy((char*)net_packet->data, "JACK", 4);
+		net_packet->data[4] = static_cast<Uint8>(clientnum);
+		net_packet->len = 5;
+		net_packet->address.host = net_server.host;
+		net_packet->address.port = net_server.port;
+		sendPacketSafe(net_sock, -1, net_packet, 0);
+	}
+
+	static void handleLobbyStartPacket(const bool isRestart)
+	{
+		destroyMainMenu();
+		createDummyMainMenu();
+		lobbyWindowSvFlags = SDLNet_Read32(&net_packet->data[4]);
+		uniqueGameKey = SDLNet_Read32(&net_packet->data[8]);
+		uniqueLobbyKey = SDLNet_Read32(&net_packet->data[13]);
+		local_rng.seedBytes(&uniqueGameKey, sizeof(uniqueGameKey));
+		net_rng.seedBytes(&uniqueGameKey, sizeof(uniqueGameKey));
+		if ( isRestart && net_packet->data[12] == 0 )
+		{
+			loadingsavegame = 0;
+			loadinglobbykey = 0;
+			if ( gameModeManager.allowsSaves() )
+			{
+				deleteSaveGame(multiplayer);
+			}
+		}
+		beginFade(FadeDestination::GameStart);
+		numplayers = MAXPLAYERS;
+	}
+
 	static std::unordered_map<Uint32, void(*)()> clientPacketHandlers = {
 	    // game start
 	    {'STRT', [](){
-            destroyMainMenu();
-            createDummyMainMenu();
-	        lobbyWindowSvFlags = SDLNet_Read32(&net_packet->data[4]);
-	        uniqueGameKey = SDLNet_Read32(&net_packet->data[8]);
-			uniqueLobbyKey = SDLNet_Read32(&net_packet->data[13]);
-	        local_rng.seedBytes(&uniqueGameKey, sizeof(uniqueGameKey));
-	        net_rng.seedBytes(&uniqueGameKey, sizeof(uniqueGameKey));
-	        beginFade(FadeDestination::GameStart);
-	        numplayers = MAXPLAYERS;
-	        if (net_packet->data[12] == 0) {
-	            // is this necessary? I don't think so
-		        //loadingsavegame = 0;
-	        }
+			handleLobbyStartPacket(false);
 	    }},
+		{'RSTR', [](){
+			handleLobbyStartPacket(true);
+		}},
 
 		// late join-handshake packets can arrive after we've already transitioned.
 		{'HELO', [](){
@@ -13273,6 +13412,10 @@ bind_failed:
 					gotPacket = true;
 				}
 			}
+			else if ( stashPendingJoinControlPacketIfNeeded() )
+			{
+				return;
+			}
 		}
 
 		static void handlePacketsAsClient() {
@@ -13486,6 +13629,31 @@ bind_failed:
 					// open lobby
                     closePrompt("connect_prompt");
 					createLobby(LobbyType::LobbyJoined);
+					notifyHostLobbyJoinComplete();
+					if ( g_pendingJoinControlPacketState.valid )
+					{
+						memcpy(net_packet->data, g_pendingJoinControlPacketState.data,
+							static_cast<size_t>(g_pendingJoinControlPacketState.len));
+						net_packet->len = g_pendingJoinControlPacketState.len;
+						const Uint32 pendingPacketId = SDLNet_Read32(&net_packet->data[0]);
+						resetPendingJoinControlPacketState();
+						auto pendingHandler = clientPacketHandlers.find(pendingPacketId);
+						if ( pendingHandler != clientPacketHandlers.end() )
+						{
+							printlog("[NET]: processing deferred join-time control packet %c%c%c%c after HELO",
+								static_cast<char>(net_packet->data[0]),
+								static_cast<char>(net_packet->data[1]),
+								static_cast<char>(net_packet->data[2]),
+								static_cast<char>(net_packet->data[3]));
+							(*(pendingHandler->second))();
+							return;
+						}
+						printlog("[NET]: dropping deferred join-time control packet %c%c%c%c with no client handler",
+							static_cast<char>(net_packet->data[0]),
+							static_cast<char>(net_packet->data[1]),
+							static_cast<char>(net_packet->data[2]),
+							static_cast<char>(net_packet->data[3]));
+					}
 
                     // TODO subscribe to mods!
 #if 0
@@ -13647,6 +13815,7 @@ bind_failed:
 	}
 
 	static void setupNetGameAsServer() {
+		resetLobbyStartSyncState();
 	    // allocate data for client connections
 	    net_clients = (IPaddress*) malloc(sizeof(IPaddress) * MAXPLAYERS);
 	    net_tcpclients = (TCPsocket*) malloc(sizeof(TCPsocket) * MAXPLAYERS);
@@ -13767,6 +13936,7 @@ bind_failed:
 		PingNetworkStatus_t::reset();
 		Mods::lobbyDisableSteamAchievements = false;
 		lobbyCustomScenarioClient.clear();
+		resetPendingJoinControlPacketState();
 
 	    // open wait prompt
         cancellablePrompt("connect_prompt", "", "Cancel", [](Widget& widget){
@@ -20023,27 +20193,14 @@ failed:
 			uniqueLobbyKey = local_rng.getU32();
 	        net_rng.seedBytes(&uniqueGameKey, sizeof(uniqueGameKey));
 
-			printlog("Starting game, game seed: %lu", uniqueGameKey);
+	        printlog("Starting game, game seed: %lu", uniqueGameKey);
 
 	        // send start signal to each player
 	        if (multiplayer == SERVER) {
+				g_lobbyStartIssued = true;
+				strcpy(g_lobbyStartPacketType, intro ? "STRT" : "RSTR");
 	            for (int c = 1; c < MAXPLAYERS; c++) {
-		            if (client_disconnected[c]) {
-			            continue;
-		            }
-		            if (intro) {
-		                memcpy((char*)net_packet->data, "STRT", 4);
-		            } else {
-		                memcpy((char*)net_packet->data, "RSTR", 4);
-		            }
-		            SDLNet_Write32(svFlags, &net_packet->data[4]);
-		            SDLNet_Write32(uniqueGameKey, &net_packet->data[8]);
-		            net_packet->data[12] = loadingsavegame ? 1 : 0;
-					SDLNet_Write32(uniqueLobbyKey, &net_packet->data[13]);
-		            net_packet->address.host = net_clients[c - 1].host;
-		            net_packet->address.port = net_clients[c - 1].port;
-		            net_packet->len = 17;
-		            sendPacketSafe(net_sock, -1, net_packet, c - 1);
+					sendLobbyStartPacketToPlayer(c);
 	            }
 	        }
 	    }

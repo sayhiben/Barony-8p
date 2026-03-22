@@ -12,6 +12,7 @@
 #pragma once
 
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
 #include <cstdio>
@@ -306,6 +307,21 @@ std::vector<std::string> getLinesFromDataFile(std::string filename);
 int loadMainMenuMap(bool blessedAdditionMaps, bool forceVictoryMap, int forcemap = -1);
 int physfsLoadMapFile(int levelToLoad, Uint32 seed, bool useRandSeed, int *checkMapHash = nullptr);
 Uint32 calculateMapTileChecksum(const map_t& source);
+Uint32 calculateMapEntityChecksum(const map_t& source);
+struct MapGeometrySnapshot
+{
+	char name[32] = { 0 };
+	char author[32] = { 0 };
+	char filename[256] = { 0 };
+	Uint32 width = 0;
+	Uint32 height = 0;
+	Uint32 skybox = 0;
+	Sint32 flags[MAPFLAGS] = { 0 };
+	std::vector<Sint32> tiles;
+	std::map<int, Uint32> tileAttributes;
+};
+MapGeometrySnapshot captureMapGeometrySnapshot(const map_t& source);
+bool applyMapGeometrySnapshot(map_t& destmap, const MapGeometrySnapshot& snapshot);
 std::list<std::string> physfsGetFileNamesInDirectory(const char* dir);
 std::string physfsFormatMapName(char const * const levelfilename);
 bool physfsModelIndexUpdate(int &start, int &end);
