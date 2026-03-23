@@ -25,13 +25,11 @@ MACOS
 4. Duplicate Barony.app (or copy/paste it) and rename the copy (example: Barony-15p.app).
 5. Extract the matching macOS mod package zip.
 6. Right-click your copied app -> Show Package Contents.
-7. Right-click the mod's Barony.app from the zip (older packages: barony.app) -> Show Package Contents.
-8. In the mod app, open Contents/MacOS. Copy:
-   - Barony (older packages may use lowercase barony)
-   - libsteam_api.dylib
-9. Paste those into your copied app's Contents/MacOS folder and replace when prompted.
-10. In the mod app, open Contents/Frameworks and copy all .dylib files.
-11. Paste them into your copied app's Contents/Frameworks folder and replace when prompted.
+7. Right-click the mod's Barony.app from the zip (older packages may use lowercase barony) -> Show Package Contents.
+8. In the mod app, open Contents/MacOS and copy EVERYTHING in that folder into your copied app's Contents/MacOS folder.
+9. Replace files when prompted. Do not skip support links/symlinks shipped next to `Barony` / `libsteam_api.dylib`.
+10. In the mod app, open Contents/Frameworks and copy all files in that folder into your copied app's Contents/Frameworks folder.
+11. Replace files when prompted.
 12. Launch the copied app (right-click -> Open the first time).
 13. If macOS shows "cannot verify" for a dylib:
     - Click Done.

@@ -200,6 +200,77 @@ resolve_dependency_source() {
   return 0
 }
 
+bundle_needs_loader_path_dependency() {
+  local bundle="$1"
+  local dep_name="$2"
+  local binary=""
+  local dep=""
+
+  while IFS= read -r binary; do
+    is_macho_file "$binary" || continue
+    while IFS= read -r dep; do
+      [[ -n "$dep" ]] || continue
+      if [[ "$dep" == "@loader_path/$dep_name" ]]; then
+        return 0
+      fi
+    done < <(otool -L "$binary" | tail -n +2 | awk '{print $1}')
+  done < <(find "$bundle/Contents" -type f | sort)
+
+  return 1
+}
+
+ensure_known_loader_path_dependencies() {
+  local bundle="$1"
+  local macos_dir="$bundle/Contents/MacOS"
+  local steam_api_source="$repo_root/deps/steamworks/sdk/redistributable_bin/osx/libsteam_api.dylib"
+  local steam_api_dest="$macos_dir/libsteam_api.dylib"
+
+  mkdir -p "$macos_dir"
+
+  if bundle_needs_loader_path_dependency "$bundle" "libsteam_api.dylib" && [[ ! -f "$steam_api_dest" ]]; then
+    [[ -f "$steam_api_source" ]] || {
+      echo "Missing Steam redistributable: $steam_api_source" >&2
+      exit 1
+    }
+    cp -fL "$steam_api_source" "$steam_api_dest"
+    chmod u+w "$steam_api_dest" || true
+  fi
+}
+
+ensure_overlay_resource_symlinks() {
+  local bundle="$1"
+  local macos_dir="$bundle/Contents/MacOS"
+  local resource_entry=""
+  local resource_entries=(
+    books
+    data
+    fonts
+    gamecontrollerdb.txt
+    images
+    items
+    lang
+    maps
+    models
+    music
+    npcnames-female.txt
+    npcnames-male.txt
+    playernames-female.txt
+    playernames-male.txt
+    sound
+    steam_appid.txt
+    themes
+  )
+
+  mkdir -p "$macos_dir"
+
+  for resource_entry in "${resource_entries[@]}"; do
+    if [[ -e "$macos_dir/$resource_entry" || -L "$macos_dir/$resource_entry" ]]; then
+      continue
+    fi
+    ln -s "../Resources/$resource_entry" "$macos_dir/$resource_entry"
+  done
+}
+
 normalize_bundle_binary_id() {
   local binary="$1"
   local current_id=""
@@ -432,11 +503,15 @@ cp -f "$changelog_source" "$package_dir/mod-changelog.txt"
 cp -f "$detailed_changelog_source" "$package_dir/changelog_v5.0.2.md"
 
 ditto "$barony_app" "$package_dir/Barony.app"
+ensure_known_loader_path_dependencies "$package_dir/Barony.app"
+ensure_overlay_resource_symlinks "$package_dir/Barony.app"
 bundle_non_system_dylibs "$package_dir/Barony.app" "$package_dir/barony-missing-deps.txt"
 ad_hoc_codesign_bundle "$package_dir/Barony.app"
 
 if [[ "$skip_editor" -eq 0 ]]; then
   ditto "$editor_app" "$package_dir/editor.app"
+  ensure_known_loader_path_dependencies "$package_dir/editor.app"
+  ensure_overlay_resource_symlinks "$package_dir/editor.app"
   bundle_non_system_dylibs "$package_dir/editor.app" "$package_dir/editor-missing-deps.txt"
   ad_hoc_codesign_bundle "$package_dir/editor.app"
 fi
