@@ -69,6 +69,7 @@ When this stack is released, include a short multiplayer bugfix note:
 - The duplicate Markdown workshop draft was removed; `STEAM-WORKSHOP.txt` is now the single source of truth for Steam markup copy.
 - EOS-specific validation is intentionally de-scoped as a release gate; Epic players can use the matching Steam or NoDRM package.
 - The official-map compatibility path remains canonical-v5.0.2-first while accepting the 19 official v5.0.1-era hashes until broadly distributed asset packs catch up.
+- Cross-platform release-smoke entrypoints now exist at `scripts/smoke/run_release_smoke_macos.sh` and `scripts/smoke/run_release_smoke_windows.ps1`; use the `release` profile for RC gating and archive the root suite artifact directory with its `summary.env`, `suite_results.csv`, and `release_suite_report.html`.
 
 ## Acceptance Criteria
 - [x] `BARONY_SUPER_MULTIPLAYER` default is ON.

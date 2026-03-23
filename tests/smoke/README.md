@@ -1,6 +1,6 @@
-# Smoke Test Harness (macOS)
+# Smoke Test Harness
 
-This folder contains blackbox-oriented smoke scripts for LAN lobby automation, HELO chunking checks, and map generation sweeps.
+This folder contains blackbox-oriented smoke scripts for LAN lobby automation, HELO chunking checks, map generation sweeps, and the repeatable release-smoke suite used on macOS and Windows.
 
 All main runners support `--app <path>` and optional `--datadir <path>` so you can run a locally built binary against a specific asset directory.
 
@@ -8,7 +8,7 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
 
 - Entry point: `python3 tests/smoke/smoke_runner.py <lane> [options]`.
 - `smoke_runner.py` composes top-level lane parser registration (`argparse`) from lane modules.
-- Shared framework helpers live under `tests/smoke/smoke_framework/` (`common`, `process`, `summary`, `csvio`, `logscan`, `fs`, `local_lane`, `orchestration`, `tokens`, `statusfx`, `mapgen`, `mapgen_schema`, `mapgen_validation`, `mapgen_parser`, `mapgen_sweep_lane`, `mapgen_matrix_lane`, `mapgen_runtime`, `stats`, `helo_metrics`, `core_lane`, `core_parser`, `splitscreen_parser`, `splitscreen_runtime`, `splitscreen_baseline_lane`, `splitscreen_cap_lane`, `splitscreen_lanes`, `lan_helo_chunk_lane`, `lan_helo_chunk_parser`, `lan_helo_chunk_args`, `lan_helo_chunk_launch`, `lan_helo_chunk_runtime`, `lan_helo_chunk_post`, `lan_helo_chunk_summary`, `lane_helpers`, `lane_matrix`, `lane_status`, `churn_statusfx_lane`, `churn_join_leave`, `churn_statusfx_parser`, `inventory_lane`, `inventory_parser`, `lobby_remote_lane`, `lobby_remote_parser`, `self_check_lane`, `parser_common`, `reports`).
+- Shared framework helpers live under `tests/smoke/smoke_framework/` (`common`, `process`, `summary`, `csvio`, `logscan`, `fs`, `local_lane`, `orchestration`, `tokens`, `statusfx`, `mapgen`, `mapgen_schema`, `mapgen_validation`, `mapgen_parser`, `mapgen_sweep_lane`, `mapgen_matrix_lane`, `mapgen_runtime`, `stats`, `helo_metrics`, `core_lane`, `core_parser`, `splitscreen_parser`, `splitscreen_runtime`, `splitscreen_baseline_lane`, `splitscreen_cap_lane`, `splitscreen_lanes`, `lan_helo_chunk_lane`, `lan_helo_chunk_parser`, `lan_helo_chunk_args`, `lan_helo_chunk_launch`, `lan_helo_chunk_runtime`, `lan_helo_chunk_post`, `lan_helo_chunk_summary`, `lane_helpers`, `lane_matrix`, `lane_status`, `churn_statusfx_lane`, `churn_join_leave`, `churn_statusfx_parser`, `inventory_lane`, `inventory_parser`, `lobby_remote_lane`, `lobby_remote_parser`, `release_suite_lane`, `release_suite_parser`, `self_check_lane`, `parser_common`, `reports`).
 - `pyproject.toml` documents runtime expectations (`stdlib`-only dependencies) and an installable console script.
 - `lan-helo-chunk` execution and parser registration are split across `smoke_framework/lan_helo_chunk_lane.py` and `smoke_framework/lan_helo_chunk_parser.py`.
 - `lan-helo-chunk` argument normalization and launch/runtime plumbing are further split into `smoke_framework/lan_helo_chunk_args.py` and `smoke_framework/lan_helo_chunk_launch.py`.
@@ -84,6 +84,9 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
   - Supports simulated mapgen players and in-process same-level sampling/sweeps.
 - `mapgen-level-matrix`
   - Multi-floor mapgen matrix lane with per-floor and cross-floor aggregate outputs.
+- `release-suite`
+  - Cross-platform release gate that composes the high-signal smoke lanes into repeatable `sanity`, `release`, and `full` profiles.
+  - Emits top-level suite summaries plus per-step artifacts under `lanes/` and `mapgen/`.
 - `framework-self-check`
   - Lightweight parser/helper wiring checks for smoke framework internals.
 
@@ -93,6 +96,10 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
   - Primary CLI + lane registration and top-level orchestration entrypoint.
 - `smoke_framework/`
   - Shared runner framework helpers (filesystem, process lifecycle, summary parsing/writing, csv/log/token parsing, local lane prep, and nested lane orchestration).
+- `../scripts/smoke/run_release_smoke_macos.sh`
+  - macOS release-smoke wrapper with common smoke-build/datadir auto-detection.
+- `../scripts/smoke/run_release_smoke_windows.ps1`
+  - Windows release-smoke wrapper with common smoke-build/datadir auto-detection.
 - `.python-version`
   - Local `pyenv` interpreter pin for smoke tooling (`3.11`).
 - `generate_mapgen_heatmap.py`
@@ -101,6 +108,33 @@ All main runners support `--app <path>` and optional `--datadir <path>` so you c
   - Produces aggregate HTML summaries from lane CSV outputs.
 
 ## Quick Start
+
+Run the recommended release profile with the platform wrapper:
+
+```bash
+# macOS
+./scripts/smoke/run_release_smoke_macos.sh --profile release
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File scripts\smoke\run_release_smoke_windows.ps1 -Profile release
+```
+
+Run the suite directly through `smoke_runner.py`:
+
+```bash
+python3 tests/smoke/smoke_runner.py release-suite \
+  --app /Users/sayhiben/dev/Barony-8p/build-mac-smoke/barony.app/Contents/MacOS/Barony \
+  --datadir "$HOME/Library/Application Support/Steam/steamapps/common/Barony/Barony.app/Contents/Resources" \
+  --profile release
+```
+
+Profile guidance:
+
+- `sanity`: short pre-package check for the highest-signal networking/local regressions.
+- `release`: recommended default gate for macOS and Windows release candidates.
+- `full`: extended pass that adds soak, kick-target, and full-lobby mapgen coverage.
+
+Use a smoke-enabled build (`-DBARONY_SMOKE_TESTS=ON`) for `release-suite` and for any lane that relies on smoke autopilot hooks.
 
 Run HELO chunking smoke for 4 players:
 
@@ -336,6 +370,13 @@ Mapgen sweeps additionally emit:
 - `smoke_aggregate_report.html`
 
 Soak/adversarial/churn runs emit similar CSV + `smoke_aggregate_report.html`.
+
+`release-suite` runs additionally emit:
+
+- `suite_results.csv`: one row per suite step (`status`, `rc`, `duration_sec`, artifact path, and captured stdout/command file paths)
+- `release_suite_report.html`: top-level HTML summary for the whole suite
+- Root `summary.env`: overall profile/platform/result counts and the failing-step list
+- `lanes/<step>/` and `mapgen/<step>/`: per-step artifacts plus captured suite-step stdout
 
 ## Smoke Env Vars Used by Runtime Hooks
 

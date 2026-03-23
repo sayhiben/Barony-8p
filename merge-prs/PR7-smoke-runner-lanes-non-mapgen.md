@@ -49,6 +49,19 @@
   - `src/files.cpp` now keeps `v5.0.2` hashes canonical and accepts the 19 changed `v5.0.1` hashes as official compatibility values cross-platform, which removes hash-warning noise from current smoke runs and avoids treating those assets as modded.
   - Because broadly shipped asset packs still include those 19 variants, this compatibility path is treated as valid release signal rather than a blocker pending exact upstream `v5.0.2` asset certification.
 
+## Release-Suite Follow-up (2026-03-22)
+- Added a top-level `release-suite` smoke command that composes the existing high-signal lanes into `sanity`, `release`, and `full` profiles.
+- Added platform wrappers:
+  - `scripts/smoke/run_release_smoke_macos.sh`
+  - `scripts/smoke/run_release_smoke_windows.ps1`
+- `mapgen-sweep` and `mapgen-level-matrix` now emit root `summary.env` files, which lets suite-level reporting treat mapgen and non-mapgen steps consistently.
+- Verification on this tooling/docs pass:
+  - `python3 -m py_compile tests/smoke/smoke_runner.py tests/smoke/smoke_framework/*.py tests/smoke/tests/*.py`
+  - `python3 tests/smoke/smoke_runner.py release-suite --help`
+  - `python3 tests/smoke/smoke_runner.py framework-self-check`
+  - `python3 -m unittest discover -s tests/smoke/tests -p 'test_*.py'`
+- No new gameplay smoke artifact yet for the new suite wrapper itself; next RC validation pass should use `release-suite` so evidence lands under one artifact root with `suite_results.csv` and `release_suite_report.html`.
+
 ## Background
 PR6 provides compile-gated smoke hooks in C++, but repeatable validation for networking/combat/splitscreen/save-reload needs runner tooling. The original shell-wrapper approach became high-duplication and hard to maintain. The current direction is a single Python CLI orchestrator with modular helpers.
 

@@ -16,6 +16,7 @@ from smoke_framework.inventory_parser import register_inventory_lane_parsers
 from smoke_framework.lan_helo_chunk_parser import register_lan_helo_chunk_parser
 from smoke_framework.lobby_remote_parser import register_lobby_remote_parsers
 from smoke_framework.mapgen_parser import register_mapgen_lane_parsers
+from smoke_framework.release_suite_parser import register_release_suite_parser
 from smoke_framework.self_check_lane import register_framework_self_check_parser
 from smoke_framework.splitscreen_parser import register_splitscreen_lane_parsers
 
@@ -37,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     register_lobby_remote_parsers(sub, default_app=DEFAULT_APP)
     register_splitscreen_lane_parsers(sub, default_app=DEFAULT_APP)
     register_mapgen_lane_parsers(sub, default_app=DEFAULT_APP)
+    register_release_suite_parser(sub, default_app=DEFAULT_APP)
     register_lan_helo_chunk_parser(sub, default_app=DEFAULT_APP)
     register_framework_self_check_parser(sub)
 

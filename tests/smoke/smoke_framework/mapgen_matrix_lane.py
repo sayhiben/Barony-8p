@@ -12,6 +12,7 @@ from .mapgen_runtime import AGGREGATE, ORCH
 from .mapgen_validation import validate_mapgen_common_args
 from .process import run_command
 from .reports import find_python3, run_optional_aggregate
+from .summary import write_summary_env
 
 
 def _parse_target_levels(levels: str) -> list[int]:
@@ -144,6 +145,26 @@ def cmd_mapgen_level_matrix(ns: argparse.Namespace) -> int:
     _cleanup_matrix_caches(outdir)
     log(f"Combined CSV written to {combined_csv}")
     log(f"Per-level outputs are under {outdir / 'level-*'}")
+    result = "pass" if level_failures == 0 else "fail"
+    write_summary_env(
+        outdir / "summary.env",
+        {
+            "RESULT": result,
+            "OUTDIR": outdir,
+            "APP": ns.app,
+            "DATADIR": ns.datadir or "",
+            "CSV_PATH": combined_csv,
+            "AGGREGATE_HTML_PATH": outdir / "mapgen_level_matrix_aggregate_report.html",
+            "TRENDS_CSV_PATH": outdir / "mapgen_level_trends.csv",
+            "OVERALL_CSV_PATH": outdir / "mapgen_level_overall.csv",
+            "OVERALL_MD_PATH": outdir / "mapgen_level_overall.md",
+            "LEVELS": ",".join(str(level) for level in levels),
+            "MIN_PLAYERS": ns.min_players,
+            "MAX_PLAYERS": ns.max_players,
+            "RUNS_PER_PLAYER": ns.runs_per_player,
+            "LEVEL_FAILURES": level_failures,
+        },
+    )
     if level_failures > 0:
         log(f"Completed with {level_failures} failing level lane(s)")
         return 1

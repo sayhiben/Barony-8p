@@ -187,6 +187,13 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - split map snapshot application so `files.cpp` now owns only geometry-data copy plus HDR/lightmap/minimap cache reset, while `level_load_sync.cpp` owns vismap/shoparea buffer replacement during recovery
   - build verification passed: `cmake --build build-mac -j8 --target barony editor`
   - no new smoke artifact for this cleanup-only pass; residual caveat remains that HDR/lightmap reset still lives in `files.cpp` because the ambience console variables are anchored there today
+- Release smoke suite follow-up (2026-03-22):
+  - added `release-suite` orchestration in `tests/smoke/smoke_runner.py` plus `tests/smoke/smoke_framework/release_suite_lane.py` / `release_suite_parser.py`
+  - suite profiles are now `sanity`, `release`, and `full`; `release` is the intended cross-platform RC gate, while `full` adds soak, kick-target, and full-lobby mapgen sweep coverage
+  - added operator wrappers at `scripts/smoke/run_release_smoke_macos.sh` and `scripts/smoke/run_release_smoke_windows.ps1`
+  - mapgen suite lanes now emit top-level `summary.env` files, so suite-level rollups can treat mapgen and non-mapgen steps consistently
+  - verification on this tooling pass: `python3 -m py_compile tests/smoke/smoke_runner.py tests/smoke/smoke_framework/*.py tests/smoke/tests/*.py`, `python3 tests/smoke/smoke_runner.py release-suite --help`, `python3 tests/smoke/smoke_runner.py framework-self-check`, `python3 -m unittest discover -s tests/smoke/tests -p 'test_*.py'`
+  - no new gameplay smoke artifact yet for the wrapper/suite layer itself; next artifact-bearing pass should use the new wrapper entrypoints so release evidence lands under one root suite directory
 
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).
@@ -216,6 +223,14 @@ powershell -ExecutionPolicy Bypass -File scripts\mod_release\package_windows_rel
 ```bash
 cmake -S . -B build-mac-smoke -G Ninja -DFMOD_ENABLED=OFF -DBARONY_SMOKE_TESTS=ON
 cmake --build build-mac-smoke -j8 --target barony
+```
+- Preferred release-suite entrypoints:
+```bash
+./scripts/smoke/run_release_smoke_macos.sh --profile release
+python3 tests/smoke/smoke_runner.py release-suite --app build-mac-smoke/barony.app/Contents/MacOS/Barony --datadir "$HOME/Library/Application Support/Steam/steamapps/common/Barony/Barony.app/Contents/Resources" --profile release
+```
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke\run_release_smoke_windows.ps1 -Profile release
 ```
 - Preferred mapgen tuning loop commands:
   - Fast in-process integration preflight (`runs=2`):

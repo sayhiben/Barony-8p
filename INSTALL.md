@@ -232,6 +232,39 @@ Artifacts are written to `release-artifacts\barony-8p-windows-steam-<label>`
 and `release-artifacts\barony-8p-windows-nodrm-<label>`, plus matching `.zip`
 archives.
 
+### D. Run the Windows release smoke suite
+
+Use a separate smoke-enabled build tree so the release suite always runs against
+compiled smoke hooks instead of the default release binary:
+
+```powershell
+$env:BARONY_WIN32_LIBRARIES = "$PWD\deps\vcpkg\installed\x64-windows"
+$env:EOS_ENABLED = "0"
+
+cmake -S . -B build-vs2022-x64-smoke-nosteam -G "Visual Studio 17 2022" -A x64 `
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.10 `
+  -DCMAKE_TOOLCHAIN_FILE="$PWD\deps\vcpkg\scripts\buildsystems\vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows `
+  -DCMAKE_INSTALL_PREFIX="$PWD\build-vs2022-x64-smoke-nosteam\install-root" `
+  -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+  -DFMOD_ENABLED=OFF -DSTEAMWORKS=OFF -DEOS=OFF -DOPENAL_ENABLED=OFF `
+  -DTHEORAPLAYER=OFF -DCURL=ON -DOPUS=ON -DBARONY_SMOKE_TESTS=ON
+
+cmake --build build-vs2022-x64-smoke-nosteam --config Release --parallel
+```
+
+Then run the recommended release profile:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke\run_release_smoke_windows.ps1 `
+  -App "$PWD\build-vs2022-x64-smoke-nosteam\Release\barony.exe" `
+  -DataDir $env:BARONY_DATADIR `
+  -Profile release
+```
+
+The wrapper writes a top-level `summary.env`, `suite_results.csv`, and
+`release_suite_report.html` under `tests\smoke\artifacts\release-suite-*`.
+
 
 # macOS (Homebrew, full-feature build)
 
@@ -353,6 +386,39 @@ and creates a matching `.zip`. It:
 - bundles non-system dylibs into each app's `Contents/Frameworks`
 - stages `README.txt`, `mod-changelog.txt`, and `changelog_v5.0.2.md`
 - writes `barony-missing-deps.txt`, `editor-missing-deps.txt`, and `SHA256SUMS.txt`
+
+## 6. Run the macOS release smoke suite
+
+Use a separate smoke-enabled macOS build tree for the suite:
+
+```bash
+cmake -S . -B build-mac-smoke -G Ninja \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.10 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFMOD_ENABLED=OFF \
+  -DOPENAL_ENABLED=OFF \
+  -DSTEAMWORKS=OFF \
+  -DEOS=OFF \
+  -DPLAYFAB=OFF \
+  -DTHEORAPLAYER=OFF \
+  -DCURL=ON \
+  -DOPUS=ON \
+  -DBARONY_SMOKE_TESTS=ON
+
+cmake --build build-mac-smoke -j8 --target barony
+```
+
+Then run the recommended release profile:
+
+```bash
+./scripts/smoke/run_release_smoke_macos.sh \
+  --app "$PWD/build-mac-smoke/barony.app/Contents/MacOS/Barony" \
+  --datadir "$HOME/Library/Application Support/Steam/steamapps/common/Barony/Barony.app/Contents/Resources" \
+  --profile release
+```
+
+The wrapper writes a top-level `summary.env`, `suite_results.csv`, and
+`release_suite_report.html` under `tests/smoke/artifacts/release-suite-*`.
 
 
 # Linux (Docker, recommended for full-feature build)

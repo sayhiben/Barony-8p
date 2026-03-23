@@ -24,6 +24,7 @@ from .mapgen_runtime import AGGREGATE, ORCH, SCRIPT_DIR
 from .mapgen_validation import validate_mapgen_common_args
 from .process import run_command
 from .reports import find_python3, run_optional_aggregate
+from .summary import write_summary_env
 
 
 def _validate_mapgen_sweep_args(ns: argparse.Namespace) -> None:
@@ -455,4 +456,26 @@ def cmd_mapgen_sweep(ns: argparse.Namespace) -> int:
     _generate_mapgen_reports(csv_path, outdir)
     log(f"CSV written to {csv_path}")
     log(f"Completed {total_runs} run(s) with {failures} failure(s)")
+    result = "pass" if failures == 0 else "fail"
+    write_summary_env(
+        outdir / "summary.env",
+        {
+            "RESULT": result,
+            "OUTDIR": outdir,
+            "APP": ns.app,
+            "DATADIR": ns.datadir or "",
+            "CSV_PATH": csv_path,
+            "HEATMAP_PATH": outdir / "mapgen_heatmap.html",
+            "AGGREGATE_HTML_PATH": outdir / "smoke_aggregate_report.html",
+            "MIN_PLAYERS": ns.min_players,
+            "MAX_PLAYERS": ns.max_players,
+            "RUNS_PER_PLAYER": ns.runs_per_player,
+            "TOTAL_RUNS": total_runs,
+            "FAILURES": failures,
+            "SIMULATE_MAPGEN_PLAYERS": ns.simulate_mapgen_players,
+            "INPROCESS_SIM_BATCH": ns.inprocess_sim_batch,
+            "INPROCESS_PLAYER_SWEEP": ns.inprocess_player_sweep,
+            "MAPGEN_RELOAD_SAME_LEVEL": ns.mapgen_reload_same_level,
+        },
+    )
     return 1 if failures > 0 else 0
