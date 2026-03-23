@@ -5,7 +5,7 @@
 - Priority: High
 - Epic: Multiplayer Expansion 1-15
 - Risk: Medium
-- Status (Updated 2026-02-14): Planned, not yet isolated for review
+- Status (Updated 2026-03-22): Implemented on branch; original default-OFF scope is now historically superseded by PR10's default-ON release posture
 - Depends On: PR1
 - Blocks: PR3, PR4, PR5, PR10
 
@@ -13,7 +13,11 @@
 The project needs a controlled way to compile/run 1-15 player support incrementally without changing default behavior during stabilization. A compile-time gate avoids forcing unfinished networking/mapgen paths into default builds.
 
 ## What and Why
-Introduce `BARONY_SUPER_MULTIPLAYER` and `MAXPLAYERS=15` scaffolding behind a default-OFF switch. This enables later PRs to build and test the 15-player path while preserving 1-4 production behavior.
+Introduce `BARONY_SUPER_MULTIPLAYER` and `MAXPLAYERS=15` scaffolding behind a compile-time switch. This enables later PRs to build and test the 15-player path while preserving a clean separation between scaffolding and the later default-enable decision.
+
+## Current Branch Note (2026-03-22)
+- The current branch already flipped `BARONY_SUPER_MULTIPLAYER` to default ON as part of release prep.
+- If this PR is ever extracted independently, keep it limited to scaffolding and treat the default policy as belonging to PR10.
 
 ## Scope
 ### In Scope
@@ -32,7 +36,7 @@ Introduce `BARONY_SUPER_MULTIPLAYER` and `MAXPLAYERS=15` scaffolding behind a de
 - Mapgen tuning or telemetry
 
 ## Implementation Instructions
-1. Add `BARONY_SUPER_MULTIPLAYER` in `CMakeLists.txt`, default `OFF`.
+1. Add `BARONY_SUPER_MULTIPLAYER` in `CMakeLists.txt` without pulling in unrelated release-note/package changes.
 2. Thread the option through `src/Config.hpp.in` and generated platform config headers.
 3. In `src/main.hpp`, set `MAXPLAYERS` to `15` only when the flag is enabled; keep legacy cap when disabled.
 4. Update static arrays and related initialization in `src/main.cpp` so both OFF/ON builds are clean.

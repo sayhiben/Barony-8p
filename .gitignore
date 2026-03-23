@@ -50,6 +50,7 @@ steam_appid.txt
 *.log
 *.user
 *log.txt
+!docs/mod_release/mod-changelog.txt
 *.cache
 *.zip
 *.res

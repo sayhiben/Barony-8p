@@ -4,9 +4,9 @@ Packages Windows Steam and NoDRM overlay releases from existing build outputs.
 
 .DESCRIPTION
 Stages release folders under release-artifacts by copying barony.exe, editor.exe
-(if present), every DLL next to the executable, the mod README from
-docs/mod_release/README.txt, and SHA256SUMS.txt. Each staged folder is then
-archived as a zip that contains the folder at its root.
+(if present), every DLL next to the executable, the packaged mod README and
+changelog files from docs/mod_release, and SHA256SUMS.txt. Each staged folder
+is then archived as a zip that contains the folder at its root.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File scripts\mod_release\package_windows_release.ps1 `
@@ -37,6 +37,8 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $ReadmeSource = Join-Path $RepoRoot "docs\mod_release\README.txt"
+$ChangelogSource = Join-Path $RepoRoot "docs\mod_release\mod-changelog.txt"
+$DetailedChangelogSource = Join-Path $RepoRoot "docs\mod_release\changelog_v5.0.2.md"
 
 function Resolve-FullPath {
   param(
@@ -216,6 +218,8 @@ function New-OverlayPackage {
   }
 
   Copy-Item -LiteralPath $ReadmeSource -Destination (Join-Path $packageDir "README.txt") -Force
+  Copy-Item -LiteralPath $ChangelogSource -Destination (Join-Path $packageDir "mod-changelog.txt") -Force
+  Copy-Item -LiteralPath $DetailedChangelogSource -Destination (Join-Path $packageDir "changelog_v5.0.2.md") -Force
   Write-Sha256Sums -PackageDir $packageDir
   Compress-PackageDir -PackageDir $packageDir -ZipPath $zipPath
 
@@ -229,6 +233,14 @@ function New-OverlayPackage {
 
 if (-not (Test-Path -LiteralPath $ReadmeSource -PathType Leaf)) {
   throw "Mod README not found: $ReadmeSource"
+}
+
+if (-not (Test-Path -LiteralPath $ChangelogSource -PathType Leaf)) {
+  throw "Mod changelog not found: $ChangelogSource"
+}
+
+if (-not (Test-Path -LiteralPath $DetailedChangelogSource -PathType Leaf)) {
+  throw "Detailed changelog not found: $DetailedChangelogSource"
 }
 
 if ($SkipSteam -and $SkipNoDrm) {

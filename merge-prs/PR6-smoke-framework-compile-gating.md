@@ -5,7 +5,7 @@
 - Priority: High
 - Epic: Multiplayer Expansion 1-15
 - Risk: Medium
-- Status (Updated 2026-02-14): Planned, no extraction branch cut yet
+- Status (Updated 2026-03-22): Implemented on branch; smoke compile gating verified on macOS and Windows
 - Depends On: PR4, PR5
 - Blocks: PR7, PR8, PR9 validation quality
 

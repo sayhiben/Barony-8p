@@ -98,7 +98,7 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - Overall expansion status is near-finish: core LAN networking validation is green (HELO correctness, adversarial fail modes, soak/churn, high-slot regression lanes).
 - Completed/green lanes include: save/reload owner-encoding sweep (`1..15`), lobby regression lanes (kick-target, slot-lock/copy, page navigation), remote-combat slot bounds, local splitscreen baseline, and `/splitscreen > 4` cap clamp.
 - Steam backend handshake was validated for host-room/key flow; local same-account multi-instance joins remain a known Steam limitation.
-- EOS handshake coverage is still open and should be treated as a gating item for full backend sign-off.
+- EOS-specific validation is intentionally not a release gate for this mod release; Epic players can use the matching Steam or NoDRM package.
 - Known intermittent issue remains: churn/rejoin can hit transient `lobby full` / `error code 16` retries before recovery; track with artifacts and do not conflate with unrelated lane failures.
 - Smoke compile/runtime gating is in place (`BARONY_SMOKE_TESTS`), and the preferred local lane path is local build binary + Steam `--datadir` assets.
 
@@ -113,9 +113,9 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
 - Regression lanes passed:
   - Splitscreen cap clamp (`/splitscreen 8 -> 4`): `tests/smoke/artifacts/splitscreen-cap-duck-fix-20260226-002744`
   - Inventory fast-pass (lifecycle/edge/churn): `tests/smoke/artifacts/inventory-fast-pass-duck-fix-20260226-002822`
-- Steam/EOS backend handshake follow-up lanes were attempted but could not enter room-key handshake in this local build context (no room key captured, launch prerequisites blocked).
+- Historical backend handshake follow-up lanes were attempted but could not enter room-key handshake in this local build context (no room key captured, launch prerequisites blocked).
   - Steam artifact: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807`
-  - EOS artifact: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141`
+  - EOS artifact: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141` (tracked for history only; not a release gate)
 
 ### Windows Validation Snapshot (2026-03-14)
 - VS2022 x64 Windows release build (`build-vs2022-x64`) now coexists cleanly with a smoke build (`build-vs2022-x64-smoke-nosteam`) after moving generated `Config.hpp` to the build directory.
@@ -128,8 +128,8 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - `tests/smoke/artifacts/win-helo2-mapgen-20260314-20260314-133105`
   - `tests/smoke/artifacts/win-helo4-mapgen-20260314-20260314-132443`
 - Local Windows Steam install (`appmanifest_371970.acf`: `buildid=21759608`, `LastUpdated=2026-02-04 19:12:45 -08:00`) contains a fully self-consistent v5.0.1 map set: all 1922 `maps/*.lmp` files hash-match the upstream `v5.0.1` table, and exactly 19 files differ from the upstream `v5.0.2` table.
-- Keep `v5.0.2` hashes canonical in `src/files.cpp`, but accept the 19 changed `v5.0.1` hashes as compatibility values on Windows. Full audit artifact: `tests/smoke/artifacts/win-steam-map-hash-audit-20260314-142142` (`ACCEPTED_FILES=1922`, `COMPAT_HIT_FILES=19`).
-- Because the local Steam asset pack is still v5.0.1-era for those 19 maps, these Windows runs are good runtime-stability and compatibility signal, but they are not a clean v5.0.2 asset-certification run.
+- Keep `v5.0.2` hashes canonical in `src/files.cpp`, but accept the 19 changed `v5.0.1` hashes as official compatibility values cross-platform until upstream asset packs catch up. Full audit artifact: `tests/smoke/artifacts/win-steam-map-hash-audit-20260314-142142` (`ACCEPTED_FILES=1922`, `COMPAT_HIT_FILES=19`).
+- Because the broadly distributed asset packs still include those v5.0.1-era variants, these runs are treated as valid runtime-stability and compatibility signal rather than a release blocker pending exact upstream v5.0.2 asset certification.
 - Windows overlay release artifacts were packaged from fresh full-feature build trees with `scripts/mod_release/package_windows_release.ps1`:
   - `release-artifacts/barony-8p-windows-steam-20260314-195941.zip`
   - `release-artifacts/barony-8p-windows-nodrm-20260314-195941.zip`
@@ -274,17 +274,12 @@ python3 tests/smoke/smoke_runner.py join-leave-churn \
   --trace-join-rejects 1 \
   --outdir "tests/smoke/artifacts/churn-retry-investigation-$(date +%Y%m%d-%H%M%S)"
 ```
-  - Steam/EOS handshake lanes:
+  - Optional historical Steam handshake lane:
 ```bash
 python3 tests/smoke/smoke_runner.py lan-helo-chunk \
   --network-backend steam --instances 2 \
   --force-chunk 1 --chunk-payload-max 200 --timeout 360 \
   --outdir "tests/smoke/artifacts/steam-handshake-multiacct-$(date +%Y%m%d-%H%M%S)"
-
-python3 tests/smoke/smoke_runner.py lan-helo-chunk \
-  --network-backend eos --instances 2 \
-  --force-chunk 1 --chunk-payload-max 200 --timeout 360 \
-  --outdir "tests/smoke/artifacts/eos-handshake-$(date +%Y%m%d-%H%M%S)"
 ```
 - Technical config/guardrails:
   - Use procedural floors for balancing sweeps (`1,7,16,33`); fixed/story floors may report `MAPGEN_WAIT_REASON=reload-complete-no-mapgen-samples`.

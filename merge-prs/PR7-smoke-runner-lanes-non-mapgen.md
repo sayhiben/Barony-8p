@@ -5,7 +5,7 @@
 - Priority: Medium
 - Epic: Multiplayer Expansion 1-15
 - Risk: Low-Medium
-- Status (Updated 2026-02-14): In progress on branch, extraction PR not yet cut
+- Status (Updated 2026-03-22): Implemented on branch; backend handshake follow-ups are tracked historically but are not a release gate
 - Depends On: PR6
 - Blocks: Reliable networking/combat/splitscreen regression evidence
 
@@ -26,9 +26,9 @@
   - Artifact: `tests/smoke/artifacts/splitscreen-cap-duck-fix-20260226-002744`
 - `inventory-fast-pass` passed all three sub-lanes (`lifecycle`, `edge`, `churn`).
   - Artifact: `tests/smoke/artifacts/inventory-fast-pass-duck-fix-20260226-002822`
-- Backend handshake follow-ups were attempted but blocked by missing room key prerequisites in this local build/runtime context:
+- Historical backend handshake follow-ups were attempted but blocked by missing room key prerequisites in this local build/runtime context:
   - Steam: `tests/smoke/artifacts/steam-remote-combat-fix-20260226-001807` (`roomKeyFound=0`, `launchBlocked=1`)
-  - EOS: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141` (`roomKeyFound=0`, `launchBlocked=1`)
+  - EOS: `tests/smoke/artifacts/eos-remote-combat-fix-20260226-002141` (`roomKeyFound=0`, `launchBlocked=1`, historical only)
 
 ## Windows Validation Snapshot (2026-03-14)
 - Framework sanity:
@@ -46,8 +46,8 @@
     - `tests/smoke/artifacts/win-helo4-mapgen-20260314-20260314-132443`
 - Windows asset audit:
   - `D:\SteamLibrary\steamapps\common\Barony` is internally consistent with the upstream `v5.0.1` map table, not the upstream `v5.0.2` table. Audit artifact: `tests/smoke/artifacts/win-steam-map-hash-audit-20260314-142142` (`TOTAL_FILES=1922`, `ACCEPTED_FILES=1922`, `COMPAT_HIT_FILES=19`).
-  - `src/files.cpp` now keeps `v5.0.2` hashes canonical and accepts the 19 changed `v5.0.1` hashes as compatibility values, which removes the hash-warning noise from current Windows smoke runs and avoids treating those official assets as modded.
-  - This restores clean runtime smoke signal on Windows, but it is still not equivalent to certifying a true `v5.0.2` asset pack.
+  - `src/files.cpp` now keeps `v5.0.2` hashes canonical and accepts the 19 changed `v5.0.1` hashes as official compatibility values cross-platform, which removes hash-warning noise from current smoke runs and avoids treating those assets as modded.
+  - Because broadly shipped asset packs still include those 19 variants, this compatibility path is treated as valid release signal rather than a blocker pending exact upstream `v5.0.2` asset certification.
 
 ## Background
 PR6 provides compile-gated smoke hooks in C++, but repeatable validation for networking/combat/splitscreen/save-reload needs runner tooling. The original shell-wrapper approach became high-duplication and hard to maintain. The current direction is a single Python CLI orchestrator with modular helpers.

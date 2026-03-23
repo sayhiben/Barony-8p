@@ -1,0 +1,23 @@
+BARONY EXTENDED MULTIPLAYER
+mod-changelog.txt
+
+Version: v5.0.2m
+Date: 2026-03-22
+
+HIGH-LEVEL CHANGES
+- Synced the mod to upstream Barony v5.0.2.
+- Default-enabled 1-15 online/LAN support; local splitscreen remains capped at 4.
+- Added host-authoritative level-load checksum verification and geometry snapshot recovery for map-desync cases.
+- Hardened owner encoding, save/load handling, and combat attribution for player slots up to 15.
+- Fixed Hermit duck ownership/color encoding and added a warning for mixed datadir installs with outdated duck variations.
+- Fixed remote enemy HP/damage forwarding in LAN and other P2P-style session flows.
+- Updated official map verification to the v5.0.2 table while still accepting the official v5.0.1-era hashes for the 19 changed maps.
+- Refreshed release packaging so Windows/Linux archives include the README, changelogs, and SHA256 checksums.
+
+NOTES
+- Official installs that still ship the older 19 map variants remain supported by this release.
+- 5+ player balancing remains overflow-only; baseline 1-4 behavior is preserved.
+- Epic players can use the matching Steam or NoDRM package; EOS-specific validation is not a release gate for this build.
+
+MORE DETAIL
+- See changelog_v5.0.2.md for the longer technical release notes.

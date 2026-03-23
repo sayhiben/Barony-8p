@@ -5,7 +5,7 @@
 - Priority: Critical
 - Epic: Multiplayer Expansion 1-15
 - Risk: High
-- Status (Updated 2026-02-14): Planned, blocked on PR8 extraction/merge
+- Status (Updated 2026-03-22): Implemented on branch; current tuning snapshot is validated and treated as release candidate
 - Depends On: PR8
 - Blocks: PR10 default enablement
 

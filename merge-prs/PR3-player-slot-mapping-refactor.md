@@ -5,7 +5,7 @@
 - Priority: Medium
 - Epic: Multiplayer Expansion 1-15
 - Risk: Low
-- Status (Updated 2026-02-14): Planned, not yet isolated for review
+- Status (Updated 2026-03-22): Implemented on branch; keep as extraction-scope reference only
 - Depends On: PR2
 - Blocks: PR4 reviewability
 

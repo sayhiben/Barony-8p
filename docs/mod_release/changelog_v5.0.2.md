@@ -1,13 +1,14 @@
-# 8p-mod Changelog (v5.0.1 -> v5.0.2)
+# Detailed Release Notes (v5.0.1 -> v5.0.2)
 
 Date: 2026-03-22
-Branch: `codex/8p-mod-5.0.2`
 
 ## Summary
 This release branch rebased the mod to upstream `v5.0.2`, then hardened compatibility and stability for 1-15 player behavior through a February prep pass plus a March level-load sync follow-up. The guiding policy remained:
 - preserve strict 1-4 parity with upstream behavior
 - tune only overflow paths (5-15)
 - resolve carry-over multiplayer regressions discovered during post-reconcile validation
+
+For the packaged high-level summary, see `mod-changelog.txt`.
 
 ## Major Changes
 
@@ -206,4 +207,6 @@ Level-load sync follow-up validation (2026-03-21):
 - This changelog documents prep work from the mod `v5.0.1` baseline to upstream-aligned `v5.0.2` compatibility.
 - March follow-up work added authoritative level-load mapgen inputs and host-driven geometry recovery for checksum mismatches discovered after the initial February prep pass.
 - Recovery remains geometry-scoped: it guarantees parity for tiles, flags, and `tileAttributes`, but it is not a full host-authoritative bootstrap for static entity/content drift.
+- Official installs that still ship the 19 changed v5.0.1-era maps remain intentionally supported; exact upstream v5.0.2 asset certification is not treated as a release gate until those asset packs ship broadly.
+- EOS-specific validation is intentionally not a release gate for this mod release; Epic players can use the matching Steam or NoDRM package.
 - Final promotion should still include one full-lobby confirmation pass on the chosen tuning snapshot before tagging a release artifact.

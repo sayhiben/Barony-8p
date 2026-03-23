@@ -5,7 +5,7 @@
 - Priority: Critical
 - Epic: Multiplayer Expansion 1-15
 - Risk: High
-- Status (Updated 2026-02-14): Planned, not yet isolated for review
+- Status (Updated 2026-03-22): Implemented on branch with 2026-03-21/22 level-load sync follow-ups; keep as extraction-scope reference only
 - Depends On: PR2, PR3
 - Blocks: PR6-PR10 confidence
 

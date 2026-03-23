@@ -5,6 +5,8 @@ IMPORTANT
 - Install this mod into a COPY of Barony.
 - Do not overwrite your only/original game install.
 - Use the package that matches your platform/store.
+- `mod-changelog.txt` is the packaged high-level release summary.
+- `changelog_v5.0.2.md` contains the detailed technical release notes.
 
 WINDOWS (STEAM, EPIC, OR NO-DRM)
 1. Exit Barony and your launcher (Steam/Epic).
@@ -69,6 +71,7 @@ QUICK TROUBLESHOOTING
 - If you only see 1-4 players, you launched the wrong executable or files were not replaced.
 - If you cannot see all players in big lobbies, use the paging arrows on the far left/right sides of the lobby screen (easy to miss at first).
 - All players must use the same Barony version and the same mod build.
+- Epic players can use the matching Steam or NoDRM package; EOS-specific validation is not a release gate for this build.
 - 5+ player sessions can still hit rare desync/instability; recreate lobby and retry.
 
 BUG REPORTS

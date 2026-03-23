@@ -5,7 +5,7 @@
 - Priority: High
 - Epic: Multiplayer Expansion 1-15
 - Risk: Medium
-- Status (Updated 2026-02-14): Planned, waiting for clean mapgen-only extraction
+- Status (Updated 2026-03-22): Implemented on branch; extraction still requires clean mapgen-only isolation if split out
 - Depends On: PR6 (and PR7 smoke-runner baseline preferred)
 - Blocks: PR9 balancing with reproducible evidence
 

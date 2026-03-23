@@ -8,8 +8,9 @@ Usage:
 
 Description:
   Prepares a Linux mod release directory for end-user extraction by replacing
-  symlinked shared libraries with real files, validating shared objects, and
-  creating a zip archive.
+  symlinked shared libraries with real files, syncing packaged README/changelog
+  files from docs/mod_release, validating shared objects, and creating a zip
+  archive.
 EOF
 }
 
@@ -54,14 +55,30 @@ if [[ -z "$zip_path" ]]; then
 fi
 zip_path="$(mkdir -p "$(dirname "$zip_path")" && cd "$(dirname "$zip_path")" && pwd)/$(basename "$zip_path")"
 
-for required in barony editor run-barony.sh README.txt libsteam_api.so; do
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/../.." && pwd)"
+readme_source="$repo_root/docs/mod_release/README.txt"
+changelog_source="$repo_root/docs/mod_release/mod-changelog.txt"
+detailed_changelog_source="$repo_root/docs/mod_release/changelog_v5.0.2.md"
+
+for required in barony editor run-barony.sh libsteam_api.so; do
   if [[ ! -e "$release_dir/$required" ]]; then
     echo "Missing required release file: $release_dir/$required" >&2
     exit 1
   fi
 done
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for required_doc in "$readme_source" "$changelog_source" "$detailed_changelog_source"; do
+  if [[ ! -f "$required_doc" ]]; then
+    echo "Missing packaged release document: $required_doc" >&2
+    exit 1
+  fi
+done
+
+cp -f "$readme_source" "$release_dir/README.txt"
+cp -f "$changelog_source" "$release_dir/mod-changelog.txt"
+cp -f "$detailed_changelog_source" "$release_dir/changelog_v5.0.2.md"
+
 "$script_dir/flatten_linux_so_symlinks.sh" "$release_dir"
 
 if find "$release_dir" -maxdepth 1 -type l -name 'lib*.so*' | grep -q .; then

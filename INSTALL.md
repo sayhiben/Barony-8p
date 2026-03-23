@@ -224,6 +224,8 @@ each package input. For each package it stages:
 - every `.dll` next to the executable
 - `steam_appid.txt` when present in the Steam build output
 - the mod release readme from `docs\mod_release\README.txt`
+- the packaged high-level changelog from `docs\mod_release\mod-changelog.txt`
+- the detailed release notes from `docs\mod_release\changelog_v5.0.2.md`
 - `SHA256SUMS.txt`
 
 Artifacts are written to `release-artifacts\barony-8p-windows-steam-<label>`
@@ -333,7 +335,24 @@ cp "$PWD/deps/steamworks/sdk/redistributable_bin/osx/libsteam_api.dylib" \
 Expected artifacts:
 
 - `build-mac-all/Barony.app/Contents/MacOS/Barony`
-- `build-mac-all/editor`
+- `build-mac-all/editor.app/Contents/MacOS/editor`
+
+## 5. Package macOS Mod Release
+
+```bash
+./scripts/mod_release/package_macos_release.sh \
+  --barony-app build-mac-all/Barony.app \
+  --editor-app build-mac-all/editor.app \
+  --label v5.0.2-rc1
+```
+
+The script stages a release directory under `dist/barony-macos-release-<label>`
+and creates a matching `.zip`. It:
+
+- copies `Barony.app` and `editor.app`
+- bundles non-system dylibs into each app's `Contents/Frameworks`
+- stages `README.txt`, `mod-changelog.txt`, and `changelog_v5.0.2.md`
+- writes `barony-missing-deps.txt`, `editor-missing-deps.txt`, and `SHA256SUMS.txt`
 
 
 # Linux (Docker, recommended for full-feature build)

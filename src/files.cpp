@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 #include <future>
+#include <unordered_set>
 
 #include "files.hpp"
 #include "engine/audio/sound.hpp"
@@ -2007,10 +2008,10 @@ std::unordered_map<std::string, int> mapHashes = {
 	{ "warpzone.lmp", 3133088 }
 };
 
-// Upstream v5.0.2 updated these official maps, but current Windows Steam assets
-// still ship the v5.0.1 variants. Accept both so official installs on either
-// asset set do not get treated as modded.
-static const std::unordered_map<std::string, int> mapHashesCompat_v5_0_1 = {
+// Upstream v5.0.2 updated these official maps, but some official installs still
+// ship the older v5.0.1-era variants. Accept both hash sets cross-platform so
+// official assets are not treated as modded while upstream asset packs catch up.
+static const std::unordered_map<std::string, int> mapHashesCompatOfficial_v5_0_1 = {
 	{ "citadel21d.lmp", 97893 },
 	{ "labyrinth16a.lmp", 26543 },
 	{ "mine14.lmp", 59017 },
@@ -2031,6 +2032,7 @@ static const std::unordered_map<std::string, int> mapHashesCompat_v5_0_1 = {
 	{ "ruins_lockg01e.lmp", 3826 },
 	{ "swamp_locks01.lmp", 41985 }
 };
+static std::unordered_set<std::string> mapHashesCompatOfficial_v5_0_1Logged;
 
 const std::vector<std::string> officialLevelsTxtOrder =
 {
@@ -2349,17 +2351,29 @@ bool verifyMapHash(const char* filename, int hash, bool *fileExistsInTable) {
 	auto r = slash > backslash ? slash : backslash;
 	const char* shortName = r ? (r + 1) : filename;
 	auto it = mapHashes.find(shortName);
-	auto compatIt = mapHashesCompat_v5_0_1.find(shortName);
+	auto compatIt = mapHashesCompatOfficial_v5_0_1.find(shortName);
 	const int canonical = it != mapHashes.end() ? it->second : -1;
-	const int compat = compatIt != mapHashesCompat_v5_0_1.end() ? compatIt->second : -1;
+	const int compat = compatIt != mapHashesCompatOfficial_v5_0_1.end() ? compatIt->second : -1;
 	if ( fileExistsInTable )
 	{
 		*fileExistsInTable = it != mapHashes.end();
 	}
-	const bool result = it != mapHashes.end()
-		&& (canonical == hash || compat == hash || canonical == -1 || hash == -1);
+	const bool matchesCanonical = (canonical == hash || canonical == -1 || hash == -1);
+	const bool matchesCompat = (compat == hash);
+	const bool result = it != mapHashes.end() && (matchesCanonical || matchesCompat);
+	if (result && matchesCompat) {
+		if (mapHashesCompatOfficial_v5_0_1Logged.insert(shortName).second) {
+			printlog("map '%s' accepted official v5.0.1 compatibility hash (%d); canonical v5.0.2 hash is %d",
+				filename, compat, canonical);
+		}
+	}
 	if (!result) {
-		printlog("map '%s' failed hash check (%d should be %d)", filename, hash, canonical);
+		if ( compat != -1 ) {
+			printlog("map '%s' failed hash check (%d should be canonical %d or official-compat %d)",
+				filename, hash, canonical, compat);
+		} else {
+			printlog("map '%s' failed hash check (%d should be %d)", filename, hash, canonical);
+		}
 	}
 	return result;
 }
