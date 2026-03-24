@@ -26,29 +26,47 @@ namespace Mapgen
 
 	int connectedPlayersOverride()
 	{
-		static bool initialized = false;
-		static int envOverridePlayers = 0;
-		static std::string controlFilePath;
 		static int lastLoggedOverridePlayers = -1;
+		static std::string lastLoggedControlFilePath;
+		static std::string lastInvalidEnvValue;
 		static std::string lastInvalidControlFileValue;
 
-		if ( !initialized )
+		const char* rawEnvOverrideValue = SDL_getenv("BARONY_SMOKE_MAPGEN_CONNECTED_PLAYERS");
+		const std::string rawEnvOverride = trimCopy(rawEnvOverrideValue ? rawEnvOverrideValue : "");
+		int envOverridePlayers = 0;
+		if ( !rawEnvOverride.empty() )
 		{
-			initialized = true;
-			if ( envHasValue("BARONY_SMOKE_MAPGEN_CONNECTED_PLAYERS") )
+			if ( parseBoundedIntString(rawEnvOverride, 1, MAXPLAYERS, envOverridePlayers) )
 			{
-				envOverridePlayers = parseEnvInt("BARONY_SMOKE_MAPGEN_CONNECTED_PLAYERS", 0, 1, MAXPLAYERS);
-				if ( envOverridePlayers <= 0 )
-				{
-					printlog("[SMOKE]: ignoring invalid BARONY_SMOKE_MAPGEN_CONNECTED_PLAYERS");
-				}
+				lastInvalidEnvValue.clear();
 			}
-			controlFilePath = trimCopy(parseEnvString("BARONY_SMOKE_MAPGEN_CONTROL_FILE", ""));
-			if ( !controlFilePath.empty() )
+			else if ( rawEnvOverride != lastInvalidEnvValue )
+			{
+				printlog("[SMOKE]: ignoring invalid BARONY_SMOKE_MAPGEN_CONNECTED_PLAYERS='%s'",
+					rawEnvOverride.c_str());
+				lastInvalidEnvValue = rawEnvOverride;
+			}
+		}
+		else
+		{
+			lastInvalidEnvValue.clear();
+		}
+
+		const char* rawControlFilePath = SDL_getenv("BARONY_SMOKE_MAPGEN_CONTROL_FILE");
+		const std::string controlFilePath = trimCopy(rawControlFilePath ? rawControlFilePath : "");
+		if ( !controlFilePath.empty() )
+		{
+			if ( controlFilePath != lastLoggedControlFilePath )
 			{
 				printlog("[SMOKE]: mapgen connected-player control-file configured: %s",
 					controlFilePath.c_str());
+				lastLoggedControlFilePath = controlFilePath;
 			}
+		}
+		else
+		{
+			lastLoggedControlFilePath.clear();
+			lastInvalidControlFileValue.clear();
 		}
 
 		int overridePlayers = envOverridePlayers;
@@ -68,6 +86,7 @@ namespace Mapgen
 					{
 						overridePlayers = parsedControlPlayers;
 						overrideFromControlFile = true;
+						lastInvalidControlFileValue.clear();
 					}
 					else if ( trimmedValue != lastInvalidControlFileValue )
 					{
@@ -81,6 +100,7 @@ namespace Mapgen
 
 		if ( overridePlayers <= 0 )
 		{
+			lastLoggedOverridePlayers = -1;
 			return 0;
 		}
 		if ( overridePlayers != lastLoggedOverridePlayers )

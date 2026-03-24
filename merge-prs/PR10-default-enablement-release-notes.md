@@ -54,6 +54,8 @@ When this stack is released, include a short multiplayer bugfix note:
 - Manual startup sanity with default settings.
 - Operator packaging sanity:
   - Steam and NoDRM Windows overlay zips contain the built executables, adjacent runtime DLLs, the mod README, packaged changelog files, and `SHA256SUMS.txt`.
+- Post-package install validation:
+  - Follow the packaged README flow on Windows against the freshly built zip(s): copy a Barony install, extract the matching package, overlay files, verify `SHA256SUMS.txt`, and launch the installed executable long enough to catch startup/runtime dependency issues.
 
 ## Notes (2026-03-14)
 - Windows overlay packaging helper now exists at `scripts/mod_release/package_windows_release.ps1`.
@@ -71,12 +73,29 @@ When this stack is released, include a short multiplayer bugfix note:
 - The official-map compatibility path remains canonical-v5.0.2-first while accepting the 19 official v5.0.1-era hashes until broadly distributed asset packs catch up.
 - Cross-platform release-smoke entrypoints now exist at `scripts/smoke/run_release_smoke_macos.sh` and `scripts/smoke/run_release_smoke_windows.ps1`; use the `release` profile for RC gating and archive the root suite artifact directory with its `summary.env`, `suite_results.csv`, and `release_suite_report.html`.
 
+## Notes (2026-03-24)
+- Windows RC smoke suite passed with the intended `release` profile:
+  - Root artifact: `tests/smoke/artifacts/release-suite-windows-release-20260324-131100`
+  - `summary.env`: `RESULT=pass`, `PASS_STEPS=15`, `FAIL_STEPS=0`
+- The prior Windows-only `mapgen-integration-preflight` false fail was fixed in smoke plumbing (`src/smoke/SmokeHooksMapgen.cpp`) and verified by the targeted artifact:
+  - `tests/smoke/artifacts/mapgen-integration-preflight-fix2-20260324-131000`
+- Fresh Windows overlay packaging artifacts from rebuilt release trees:
+  - `release-artifacts/barony-8p-windows-steam-20260324-134215.zip`
+  - `release-artifacts/barony-8p-windows-nodrm-20260324-134215.zip`
+- Fresh zip install validation passed with the new Windows post-package validator:
+  - Command: `powershell -ExecutionPolicy Bypass -File scripts\mod_release\validate_windows_install.ps1 -Label 20260324-shipcheck60 -LaunchSeconds 60 -InputIdleSeconds 20`
+  - Root artifact: `tests/smoke/artifacts/windows-install-validation-20260324-shipcheck60`
+  - Steam zip passed against a copied local Steam install with manifest verification before/after overlay and a live 60-second startup window.
+  - NoDRM zip passed against a sanitized copy of that same install with Steam-only root files removed before overlay.
+  - Caveat: both installed copies stayed up with a live window and fresh logs, but neither reached `LoadMap ... mainmenu3.lmp` within the 60-second first-launch window in this local environment.
+- Local operator caveat: current VS/vcpkg post-build `applocal.ps1` calls still point at a stale WindowsApps PowerShell package path (`7.5.4.0`), so build commands return nonzero after link even though the rebuilt `barony.exe` / `editor.exe` outputs are present and were packaged successfully.
+
 ## Acceptance Criteria
 - [x] `BARONY_SUPER_MULTIPLAYER` default is ON.
 - [ ] No logic changes outside default/config/docs are present.
 - [ ] CI is fully green.
-- [ ] 4p and 15p smoke sanity lanes pass.
-- [ ] Splitscreen cap remains 4.
+- [x] 4p and 15p smoke sanity lanes pass.
+- [x] Splitscreen cap remains 4.
 
 ## Review Focus
 - Tiny scoped diff.

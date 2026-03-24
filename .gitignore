@@ -4,6 +4,7 @@ build-*/
 # Local distribution/release outputs
 /dist/
 /release/
+/release-artifacts/
 tests/smoke/artifacts/
 docker/*
 !docker/Dockerfile
@@ -86,6 +87,8 @@ xcode/Barony/Barony.xcodeproj/project.xcworkspace/*
 xcode/Barony/Barony.xcodeproj/xcuserdata/*
 *.ps1
 !setup_barony_vs2022_x64.ps1
+!scripts/mod_release/package_windows_release.ps1
+!scripts/mod_release/validate_windows_install.ps1
 restore-env-*.ps1
 install.log
 !LICENSE.nativefiledialog.txt

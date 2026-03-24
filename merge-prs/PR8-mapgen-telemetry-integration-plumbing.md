@@ -78,6 +78,15 @@ python3 tests/smoke/smoke_runner.py mapgen-level-matrix --help
 - CSV schema validation for required columns.
 - Integration parity checks against single-runtime matrix where applicable.
 
+## Notes (2026-03-24)
+- Fixed a Windows in-process integration regression in `src/smoke/SmokeHooksMapgen.cpp`: `connectedPlayersOverride()` now refreshes override inputs each call and reads the control-file env from `SDL_getenv()`, so the integration runner can observe the `BARONY_SMOKE_MAPGEN_CONTROL_FILE` value it sets during the same process.
+- Targeted Windows verification artifact:
+  - `tests/smoke/artifacts/mapgen-integration-preflight-fix2-20260324-131000`
+  - `mapgen_players_observed` matches `mapgen_players_override` across the full `1..15` sweep with zero `fail` rows.
+- The same fix was exercised inside the full Windows `release-suite` RC artifact:
+  - `tests/smoke/artifacts/release-suite-windows-release-20260324-131100`
+  - `mapgen-integration-preflight` passed in `12s`; `mapgen-level-matrix-sim` remained green.
+
 ## Acceptance Criteria
 - [ ] `-smoke-mapgen-integration*` CLI is wired through `src/game.cpp` and executed by `src/smoke/SmokeHooksMapgen.cpp`.
 - [ ] Mapgen lanes generate expected artifact set (`csv`, aggregate HTML, heatmap, summary env).

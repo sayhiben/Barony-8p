@@ -194,6 +194,24 @@ When running in Codex with sandboxing, ask for sandbox breakout/escalation permi
   - mapgen suite lanes now emit top-level `summary.env` files, so suite-level rollups can treat mapgen and non-mapgen steps consistently
   - verification on this tooling pass: `python3 -m py_compile tests/smoke/smoke_runner.py tests/smoke/smoke_framework/*.py tests/smoke/tests/*.py`, `python3 tests/smoke/smoke_runner.py release-suite --help`, `python3 tests/smoke/smoke_runner.py framework-self-check`, `python3 -m unittest discover -s tests/smoke/tests -p 'test_*.py'`
   - no new gameplay smoke artifact yet for the wrapper/suite layer itself; next artifact-bearing pass should use the new wrapper entrypoints so release evidence lands under one root suite directory
+- Windows release RC follow-up (2026-03-24):
+  - Windows `release` smoke suite passed end-to-end from `build-vs2022-x64-smoke-nosteam\Release\barony.exe` against `D:\SteamLibrary\steamapps\common\Barony`.
+  - Root artifact: `tests/smoke/artifacts/release-suite-windows-release-20260324-131100`
+    - `summary.env`: `RESULT=pass`, `PASS_STEPS=15`, `FAIL_STEPS=0`
+    - includes `suite_results.csv` and `release_suite_report.html`
+  - Fixed a Windows-only in-process mapgen preflight regression in `src/smoke/SmokeHooksMapgen.cpp`: the control-file override now refreshes from `SDL_getenv()` instead of freezing an empty `std::getenv()` snapshot before `SDL_setenv()` updates land.
+  - Targeted verification artifact for that hook fix: `tests/smoke/artifacts/mapgen-integration-preflight-fix2-20260324-131000`
+    - `mapgen_players_observed` now matches `1..15` with zero failing rows
+  - Fresh Windows overlay release artifacts were packaged from rebuilt release trees:
+    - `release-artifacts/barony-8p-windows-steam-20260324-134215.zip`
+    - `release-artifacts/barony-8p-windows-nodrm-20260324-134215.zip`
+  - Post-package Windows install validation now exists at `scripts/mod_release/validate_windows_install.ps1` and passed against those freshly packaged zips:
+    - root artifact: `tests/smoke/artifacts/windows-install-validation-20260324-shipcheck60`
+    - validated flow: copy local Barony install -> extract package -> overlay files per `docs/mod_release/README.txt` -> verify `SHA256SUMS.txt` before/after overlay -> launch installed `barony.exe` for a 60-second startup window
+    - Steam package passed against a copied local Steam install; NoDRM package passed against a sanitized copy of the same install with Steam-only root files removed before overlay
+    - current caveat: both installed copies created a live window and remained up for the full validation window with fresh logs, but first-run initialization did not reach `LoadMap ... mainmenu3.lmp` within 60 seconds in this environment
+  - Local host caveat: MSBuild/vcpkg `applocal.ps1` still targets a stale WindowsApps PowerShell path (`7.5.4.0`), so Windows build commands currently exit nonzero after link with code `3` even though `barony.exe` / `editor.exe` are produced successfully.
+  - Local smoke-build caveat: if that stale `applocal` step leaves DLL staging incomplete, smoke app launches can fail with `0xC0000135` and empty per-instance logs until the missing runtime DLLs are restaged or the `pwsh.exe` path is fixed.
 
 ### Balancing Lessons and Guardrails
 - Hard rule: preserve `1..4p` gameplay parity; all new mapgen balancing logic must be overflow-only (`connectedPlayers > 4`).
@@ -218,6 +236,13 @@ powershell -ExecutionPolicy Bypass -File scripts\mod_release\package_windows_rel
   -Label 20260314-195941 `
   -SteamBuildDir build-vs2022-x64-release-steam `
   -NoDrmBuildDir build-vs2022-x64-release-nodrm
+```
+- Windows post-package install validation:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\mod_release\validate_windows_install.ps1 `
+  -Label 20260324-shipcheck60 `
+  -LaunchSeconds 60 `
+  -InputIdleSeconds 20
 ```
 - Smoke-enabled build (required for `[SMOKE]` hooks/logs):
 ```bash
